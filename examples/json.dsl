@@ -27,7 +27,9 @@ Array = (
   /\]/
 );
 
-string = /"/ /[^"]*/ /"/;
+string = /"/ stringBody* /"/;
+
+stringBody = /([^"\\]|\\(["\\/bfnrt]|u[0-9a-fA-F]{4}))+/;
 
 number = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/;
 
