@@ -94,7 +94,7 @@ const jsonSemantics = new semantics.Semantics('json', jsonGraph, {
       case '\\t': return '\t';
       default:
         if (t.value.startsWith('\\u'))
-          return String.fromCharCode(parseInt(t.value, 16));
+          return String.fromCharCode(parseInt(t.value.slice(2), 16));
         return t.value[1];
     }
   },
