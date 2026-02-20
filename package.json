@@ -1,0 +1,18 @@
+{
+  "name": "parser",
+  "version": "1.0.0",
+  "description": "A parser library based on a grammar defined using nested arrays.",
+  "license": "ISC",
+  "author": "AGitUser0001",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "repl": "tsx --import ./examples/repl-preload.js"
+  },
+  "devDependencies": {
+    "@types/benchmark": "^2.1.5",
+    "@types/node": "^25.2.2",
+    "benchmark": "^2.1.4",
+    "tsx": "^4.21.0"
+  }
+}
