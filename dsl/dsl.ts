@@ -350,8 +350,12 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
 });
 
 export const WS_REGEX = /\s*(?:\/\/.*$\s*)*/my;
-export function compile(input: string) {
+export function load(input: string) {
   const result = semantics.parse(graph, input, 'Grammar', void 0, WS_REGEX);
   assertType(result, 'states');
-  return input_to_graph(result.v);
+  return result.v;
+}
+
+export function compile(input: string) {
+  return input_to_graph(load(input));
 }
