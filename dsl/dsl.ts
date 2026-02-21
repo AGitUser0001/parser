@@ -44,8 +44,8 @@ export const grammar = {
   terminal: [/\//, /(?:\\.|[^/\\[]|\[(?:\\.|[^\]\\])*\])+/, /\//, /[a-z]*/],
 
   string: {
-    single: [/'/, /(?:[^\\']|\\.)+/, /'/],
-    double: [/"/, /(?:[^\\"]|\\.)+/, /"/]
+    single: [/'/, /[^']+/, /'/],
+    double: [/"/, /[^"]+/, /"/]
   }
 } as const;
 
@@ -276,7 +276,7 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
 
   string(node) {
     const [lq, contentNode, rq] = node.children;
-    let str = contentNode.value.replaceAll(/\\(.)/g, '$1');
+    const str = contentNode.value;
     return {
       t: 'input',
       v: stringToRegExp(str)
