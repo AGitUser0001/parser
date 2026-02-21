@@ -1,3 +1,6 @@
+// Metagrammar that compiles to grammar
+// This version is defined using the metagrammar itself
+
 Grammar = (State /;/?)*
 
 StateObject = /\{/ (State_reg /;/?)* /\}/
@@ -41,4 +44,4 @@ identifier = /[A-Za-z_][A-Za-z0-9_]*/
 
 generic = /@[A-Za-z_][A-Za-z0-9_]*/
 
-terminal = /\// /(?!\*)([^\/\\]|\\.)+/ /\// /[a-z]*/
+terminal = /\// /(?:[^\/\\]|\\.)+/ /\// /[a-z]*/

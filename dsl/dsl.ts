@@ -41,7 +41,7 @@ export const grammar = {
   identifier: /[A-Za-z_][A-Za-z0-9_]*/,
   generic: /@[A-Za-z_][A-Za-z0-9_]*/,
 
-  terminal: [/\//, /(?!\*)([^\/\\]|\\.)+/, /\//, /[a-z]*/]
+  terminal: [/\//, /(?:[^\/\\]|\\.)+/, /\//, /[a-z]*/]
 } as const;
 
 export const graph = input_to_graph<keyof typeof grammar>(grammar);
@@ -330,7 +330,7 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
   }
 });
 
-export const WS_REGEX = /\s*(?:\/\*.*?\*\/\s*)*/sy;
+export const WS_REGEX = /\s*(?:\/\/.*$\s*)*/my;
 export function compile(input: string) {
   const result = semantics.parse(graph, input, 'Grammar', void 0, WS_REGEX);
   assertType(result, 'states');
