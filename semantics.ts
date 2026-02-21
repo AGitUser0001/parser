@@ -5,7 +5,11 @@ import { parse } from './parser.js';
 
 type AllASTNodes_ = UnionToIntersection<AnyASTNode>;
 export type AllASTNodes = Display<
-  DeepReplace<AllASTNodes_, [Source, Source] | [AnyASTNode[], AllASTNodes[]] | [AnyASTNode[][], AllASTNodes[][]]>
+  DeepReplace<AllASTNodes_,
+    [Source, Source]
+    | [AnyASTNode | null, AllASTNodes]
+    | [AnyASTNode[], AllASTNodes[]] | [AnyASTNode[][], AllASTNodes[][]]
+  >
 >;
 export interface SemanticsThis<K extends StateName, R, C> {
   (node: AnyASTNode): R;
