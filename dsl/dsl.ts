@@ -276,10 +276,9 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
 
   string(node) {
     const [lq, contentNode, rq] = node.children;
-    const str = contentNode.value;
     return {
       t: 'input',
-      v: stringToRegExp(str)
+      v: stringToRegExp(contentNode.value)
     };
   },
 
