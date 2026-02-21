@@ -6,13 +6,13 @@ Grammar = (State ';'?)*
 StateObject = '{' (State_reg ';'?)* '}'
 
 State = {
-  reg = identifier '=' '|'? Choice_outer
+  reg = identifier '=' Choice_outer
   obj = identifier '=' StateObject
 }
 
 Choice = {
-  outer = Sequence_outer ('|' Sequence_outer)*
-  inner = Sequence_inner ('|' Sequence_inner)*
+  outer = '|'? Sequence_outer ('|' Sequence_outer)*
+  inner = '|'? Sequence_inner ('|' Sequence_inner)*
 }
 
 Sequence = {

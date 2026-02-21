@@ -7,13 +7,13 @@ export const grammar = {
   StateObject: [/\{/, [['*', 'State_reg', ['?', /;/]]], /\}/],
 
   State: {
-    reg: ['identifier', /=/, ['?', /\|/], 'Choice_outer'],
+    reg: ['identifier', /=/, 'Choice_outer'],
     obj: ['identifier', /=/, 'StateObject'],
   },
 
   Choice: {
-    outer: ['Sequence_outer', [['*', /\|/, 'Sequence_outer']]],
-    inner: ['Sequence_inner', [['*', /\|/, 'Sequence_inner']]]
+    outer: [['?', /\|/], 'Sequence_outer', [['*', /\|/, 'Sequence_outer']]],
+    inner: [['?', /\|/], 'Sequence_inner', [['*', /\|/, 'Sequence_inner']]]
   },
 
   Sequence: {
@@ -140,7 +140,7 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
     return { t: 'state_obj', v: states };
   },
 
-  State_reg(identifierNode, _eqNode, _barNode, choiceNode) {
+  State_reg(identifierNode, _eqNode, choiceNode) {
     const name = identifierNode.children[0].value as StateName;
 
     const data = this(choiceNode);
@@ -190,7 +190,7 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
     return this.use('Sequence_inner', terms);
   },
 
-  Choice_inner(seqNode, seqIter) {
+  Choice_inner(_pipeNode, seqNode, seqIter) {
     const choice: MutableArrayTokenExpr<StateName> = [];
     const data = this(seqNode);
     assertType(data, 'input');
@@ -210,8 +210,8 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
       v: choice
     };
   },
-  Choice_outer(seqNode, seqIter) {
-    return this.use('Choice_inner', seqNode, seqIter);
+  Choice_outer(_pipeNode, seqNode, seqIter) {
+    return this.use('Choice_inner', _pipeNode, seqNode, seqIter);
   },
 
   Group(prefixes, lp, choiceNode, rp, postfixes) {

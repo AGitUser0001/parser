@@ -202,8 +202,7 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
         return this.#descend(linkedNode, ctx);
       }
       if (node.children.length === 1) {
-        if (node.children[0] instanceof StateNode)
-          return this.#descend(node.children[0], ctx);
+        return this.#descend(node.children[0], ctx);
       }
       throw new Error(
         `[${this.name}] No semantics defined for state: ${stateLabel}`,
