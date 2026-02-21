@@ -4,10 +4,10 @@ import { MapView, type DeepReplace, type UnionToIntersection, type Display } fro
 import { parse } from './parser.js';
 
 type AllASTNodes_ = UnionToIntersection<AnyASTNode>;
-type AllASTNodes = Display<
+export type AllASTNodes = Display<
   DeepReplace<AllASTNodes_, [Source, Source] | [AnyASTNode[], AllASTNodes[]] | [AnyASTNode[][], AllASTNodes[][]]>
 >;
-export type SemanticsThis<K extends StateName, R, C> = {
+export interface SemanticsThis<K extends StateName, R, C> {
   (node: AnyASTNode): R;
   with(node: AnyASTNode, ctx: C): R;
   use: {
@@ -21,8 +21,8 @@ export type SemanticsThis<K extends StateName, R, C> = {
 export type SemanticFn<K extends StateName, R, C> =
   (this: SemanticsThis<K, R, C>, ...args: AllASTNodes[]) => R;
 
-type SpecialKey = '#iter' | '#terminal' | '#root';
-export const specialKeySet = new Set<SpecialKey>(['#iter', '#terminal', '#root']);
+export type SpecialKey = '#iter' | '#terminal' | '#root';
+
 export type SemanticsKey<K extends StateName> = StateKey<K> | SpecialKey;
 
 export type SemanticsSpec<K extends StateName, R, C> = {

@@ -100,11 +100,13 @@ function collapseExpr(v: MutableArrayTokenExpr<StateName>): MutableArrayTokenExp
 export const createSemantics = Semantics.for(graph);
 export const semantics = createSemantics<Data<StateName>>('grammar', {
   Grammar(stateIter) {
-    const states: States<StateName> = {};
+    const states: States<StateName> = Object.create(null);
 
     for (const [node, _semicolonIter] of stateIter.iterations) {
       const data = this(node);
       assertType(data, 'state');
+      if (states[data.name])
+        throw new Error(`Duplicate state: ${data.name}`, { cause: { data, node, states } });
       states[data.name] = data.v;
     }
 
@@ -112,13 +114,15 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
   },
 
   StateObject(lb, stateIter, rb) {
-    const states: StateObject<StateName> = {};
+    const states: StateObject<StateName> = Object.create(null);
 
     for (const [node, _semicolonIter] of stateIter.iterations) {
       const data = this(node);
       assertType(data, 'state');
       if (!Array.isArray(data.v))
         throw new TypeError('Internal error: subState is not Array', { cause: { data, node } });
+      if (states[data.name])
+        throw new Error(`Duplicate subState: ${data.name}`, { cause: { data, node, states } });
       states[data.name] = data.v;
     }
 
@@ -296,7 +300,7 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
     const prefixA = this(prefixes);
     assertType(prefixA, 'operators');
 
-    const args: CallToken<StateName>['args'] = {};
+    const args: CallToken<StateName>['args'] = Object.create(null);
 
     const data = this(argNode);
     assertType(data, 'arg');
@@ -305,6 +309,8 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
     for (const [_sep, argNode] of argIter.iterations) {
       const data = this(argNode);
       assertType(data, 'arg');
+      if (args[data.name])
+        throw new Error(`Duplicate arg: ${data.name}`, { cause: { data, argNode, args } });
       args[data.name] = data.v;
     }
 
