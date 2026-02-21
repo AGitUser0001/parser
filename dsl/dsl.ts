@@ -30,7 +30,7 @@ export const grammar = {
   Call: ['prefixes', 'identifier', /</, 'Arg', [['*', /,/, 'Arg']], />/, '#postfixes'],
   Arg: ['identifier', /=/, 'Choice_outer'],
 
-  Terminal: ['prefixes', 'terminal', '#postfixes'],
+  Terminal: ['prefixes', ['terminal', 'string'], '#postfixes'],
 
   postfixes: '*postfix',
   postfix: /\s*>\s*[A-Za-z0-9_]+(\s*,\s*[A-Za-z0-9_]+)*|[*?+@]/,
@@ -41,7 +41,12 @@ export const grammar = {
   identifier: /[A-Za-z_][A-Za-z0-9_]*/,
   generic: /@[A-Za-z_][A-Za-z0-9_]*/,
 
-  terminal: [/\//, /(?:[^\/\\]|\\.)+/, /\//, /[a-z]*/]
+  terminal: [/\//, /(?:\\.|[^/\\[]|\[(?:\\.|[^\]\\])*\])+/, /\//, /[a-z]*/],
+
+  string: {
+    single: [/'/, /(?:[^\\']|\\.)+/, /'/],
+    double: [/"/, /(?:[^\\"]|\\.)+/, /"/]
+  }
 } as const;
 
 export const graph = input_to_graph<keyof typeof grammar>(grammar);
@@ -95,6 +100,12 @@ function collapseExpr(v: MutableArrayTokenExpr<StateName>): MutableArrayTokenExp
     }
     return value;
   });
+}
+
+function stringToRegExp(string: string, flags?: string | undefined) {
+  return new RegExp(string
+    .replace(/[|\\{}()[\]^$+*?.]/g, '\\$&')
+    .replace(/-/g, '\\x2d'), flags);
 }
 
 export const createSemantics = Semantics.for(graph);
@@ -260,6 +271,15 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
     return {
       t: 'input',
       v: new RegExp(pattern, flags)
+    };
+  },
+
+  string(node) {
+    const [lq, contentNode, rq] = node.children;
+    let str = contentNode.value.replaceAll(/\\(.)/g, '$1');
+    return {
+      t: 'input',
+      v: stringToRegExp(str)
     };
   },
 

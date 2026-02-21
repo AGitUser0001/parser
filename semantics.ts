@@ -13,7 +13,7 @@ export interface SemanticsThis<K extends StateName, R, C> {
   use: {
     (key: SemanticsKey<K>, ...args: AnyASTNode[]): R;
     with(key: SemanticsKey<K>, ctx: C, ...args: AnyASTNode[]): R;
-  }
+  };
   readonly node: AllASTNodes;
   readonly ctx: C;
 };
@@ -112,7 +112,7 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
       ) =>
         Semantics.create<K, R, C>(name, graph, spec, enable_memoization);
       return result;
-    }
+    };
     result.with = withFn;
     result.returns = <R>() => {
       const result = <C = void>(
@@ -123,7 +123,7 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
         Semantics.create<K, R, C>(name, graph, spec, enable_memoization);
       result.with = <C>() => withFn<C>().returns<R>();
       return result;
-    }
+    };
     return result;
   }
   static with<C>() {
@@ -146,7 +146,7 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
         Semantics.create<K, R, C>(name, graph, spec, enable_memoization);
       result.for = <K extends StateName>(graph: Graph<K>) =>
         Semantics.for<K>(graph).with<C>().returns<R>();
-    }
+    };
     return result;
   }
   static returns<R>() {

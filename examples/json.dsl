@@ -6,28 +6,28 @@ Value = {
   str  = string
   num  = number
   bool = boolean
-  null = /null/y
+  null = 'null'
 };
 
 Object = (
-  /\{/
+  '{'
   Items<
-    Sep = /,/,
-    Value = string /\s*:\s*/ Value
+    Sep = ',',
+    Value = string ':' Value
   >
-  /\}/
+  '}'
 );
 
 Array = (
-  /\[/
+  '['
   Items<
-    Sep = /,/,
+    Sep = ',',
     Value = Value
   >
-  /\]/
+  ']'
 );
 
-string = /"/ stringBody* /"/;
+string = '"' stringBody* '"';
 
 stringBody = /([^"\\]|\\(["\\/bfnrt]|u[0-9a-fA-F]{4}))+/;
 

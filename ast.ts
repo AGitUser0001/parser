@@ -16,7 +16,7 @@ export type ASTResult =
   | BaseASTResult & { type: 'terminal'; value: MatcherValue; }
   | BaseASTResult & { type: 'iteration'; kind: IterationOperator; value: ASTResult[][]; }
   | BaseASTResult & { type: 'attrs'; attrs: string[]; value: ASTResult[]; }
-  | BaseASTResult & { type: 'root'; value: ASTResult & { type: 'state' }; source: ASTSource; }
+  | BaseASTResult & { type: 'root'; value: ASTResult & { type: 'state'; }; source: ASTSource; };
 
 export function transformCSTRoot(result: Result): ASTResult & { type: 'root'; } {
   if (!result.ok)

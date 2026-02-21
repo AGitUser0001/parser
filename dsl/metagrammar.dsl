@@ -1,18 +1,18 @@
 // Metagrammar that compiles to grammar
 // This version is defined using the metagrammar itself
 
-Grammar = (State /;/?)*
+Grammar = (State ';'?)*
 
-StateObject = /\{/ (State_reg /;/?)* /\}/
+StateObject = '{' (State_reg ';'?)* '}'
 
 State = {
-  reg = identifier /=/ /\|/? Choice_outer
-  obj = identifier /=/ StateObject
+  reg = identifier '=' '|'? Choice_outer
+  obj = identifier '=' StateObject
 }
 
 Choice = {
-  outer = Sequence_outer (/\|/ Sequence_outer)*
-  inner = Sequence_inner (/\|/ Sequence_inner)*
+  outer = Sequence_outer ('|' Sequence_outer)*
+  inner = Sequence_inner ('|' Sequence_inner)*
 }
 
 Sequence = {
@@ -22,15 +22,15 @@ Sequence = {
 
 Term = Group | Reference | Terminal | Call
 
-Group = prefixes /\(/ Choice_inner /\)/ #postfixes
+Group = prefixes '(' Choice_inner ')' #postfixes
 
 Reference = prefixes (identifier | generic) #postfixes
 
-Call = prefixes identifier /</ Arg (/,/ Arg)* />/ #postfixes
+Call = prefixes identifier '<' Arg (',' Arg)* '>' #postfixes
 
-Arg = identifier /=/ Choice_outer
+Arg = identifier '=' Choice_outer
 
-Terminal = prefixes terminal #postfixes
+Terminal = prefixes (terminal | string) #postfixes
 
 postfixes = postfix*
 
@@ -44,4 +44,9 @@ identifier = /[A-Za-z_][A-Za-z0-9_]*/
 
 generic = /@[A-Za-z_][A-Za-z0-9_]*/
 
-terminal = /\// /(?:[^\/\\]|\\.)+/ /\// /[a-z]*/
+terminal = '/' /(?:\\.|[^/\\[]|\[(?:\\.|[^\]\\])*\])+/ '/' /[a-z]*/
+
+string = {
+  single = "'" /(?:[^\\']|\\.)+/ "'"
+  double = '"' /(?:[^\\"]|\\.)+/ '"'
+}

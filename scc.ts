@@ -225,7 +225,7 @@ export function computeSCCInfo<K extends StateName>(
   graph: Graph<K>
 ): SCCInfo<K> {
   const depGraph = buildDependencyGraph(graph);
-  
+
   const sccInfo = computeSCCs(depGraph);
   return sccInfo;
 }

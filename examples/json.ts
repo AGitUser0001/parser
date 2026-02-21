@@ -13,14 +13,14 @@ const jsonStates = {
     str: 'string',
     num: 'number',
     bool: 'boolean',
-    null: /null/y,
+    null: /null/,
   },
   Object: [
     /\{/,
     {
       state: 'Items', args: {
         'Sep': /,/,
-        'Value': ['string', /\s*:\s*/, 'Value']
+        'Value': ['string', /:/, 'Value']
       }
     },
     /\}/
