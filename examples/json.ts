@@ -1,8 +1,11 @@
-import * as graph from '../graph.js';
-import * as parser from '../parser.js';
-import * as ast from '../ast.js';
-import * as semantics from '../semantics.js';
+import { input_to_graph, graph_to_input, parse, transformCSTRoot, toTypedAST, Semantics, type AllASTNodes } from '../index.js';
 
+const LOG_GRAPH = false;
+const RUN_BENCHMARK = true;
+const LOG_ASTIR = false;
+const LOG_DATA = false;
+
+//#region define
 const jsonStates = {
   Entry: [
     'Value>json'
@@ -37,18 +40,23 @@ const jsonStates = {
 
   null: 'null'
 } as const;
-const jsonGraph = graph.input_to_graph<keyof typeof jsonStates>(jsonStates);
+const jsonGraph = input_to_graph<keyof typeof jsonStates>(jsonStates);
+//#endregion
 
 import util from 'node:util';
 import { readFile } from 'node:fs/promises';
-console.log(util.inspect(jsonGraph, {
-  depth: 10
-}));
-console.log(util.inspect(graph.graph_to_input(jsonGraph), {
-  depth: 10
-}));
 
-const jsonSemantics = new semantics.Semantics('json', jsonGraph, {
+if (LOG_GRAPH) {
+  console.log(util.inspect(jsonGraph, {
+    depth: 10
+  }));
+  console.log(util.inspect(graph_to_input(jsonGraph), {
+    depth: 10
+  }));
+}
+
+//#region semantics
+const jsonSemantics = new Semantics('json', jsonGraph, {
   Items(items_con) {
     if (!items_con.children.length)
       return [];
@@ -61,7 +69,7 @@ const jsonSemantics = new semantics.Semantics('json', jsonGraph, {
   },
 
   Object(_s1, items, _s2) {
-    const pairs: semantics.AllASTNodes[][] = this(items);
+    const pairs: AllASTNodes[][] = this(items);
 
     const obj: Record<string, any> = {};
     for (const [key, _colon, value] of pairs) {
@@ -106,6 +114,7 @@ const jsonSemantics = new semantics.Semantics('json', jsonGraph, {
     return null;
   }
 });
+//#endregion
 
 // const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
 const input = await readFile('./json_sample1k.json', 'utf-8');
@@ -123,51 +132,50 @@ import Benchmark from 'benchmark';
 const suite = new Benchmark.Suite('json-test');
 
 suite.add("parser", () => {
-  const result = parser.parse(jsonGraph, input, 'Entry');
-}, {
-  // minSamples: 100
+  const result = parse(jsonGraph, input, 'Entry');
 });
 
 suite.add("combined", () => {
-  const result = parser.parse(jsonGraph, input, 'Entry');
-  const astIR = ast.transformCSTRoot(result);
-  const typedAST = ast.toTypedAST(astIR);
+  const result = parse(jsonGraph, input, 'Entry');
+  const astIR = transformCSTRoot(result);
+  const typedAST = toTypedAST(astIR);
   const data = jsonSemantics.evaluate(typedAST);
-}, {
-  // minSamples: 100
+  data;
 });
 
 suite.on('cycle', function (event: Benchmark.Event) {
   console.log(String(event.target));
 });
 
-suite.run();
+if (RUN_BENCHMARK)
+  suite.run();
 
-// console.time('10');
-// for (let i = 0; i < 10; i++)
-//   parser.parse(jsonGraph, input, 'Entry');
-// console.timeEnd('10');
-
-console.time();
-const result = parser.parse(jsonGraph, input, 'Entry');
-console.timeEnd();
-console.log(JSON.stringify(result).length);
+console.time('run');
+const result = parse(jsonGraph, input, 'Entry');
+console.timeEnd('run');
+console.log('Result: ', JSON.stringify(result).length);
 
 if (result.ok) {
   console.time('transformCSTRoot');
-  const astIR = ast.transformCSTRoot(result);
+  const astIR = transformCSTRoot(result);
   console.timeEnd('transformCSTRoot');
-  console.log(JSON.stringify(astIR).length);
-  console.log(JSON.stringify(astIR).slice(0, 50000));
-  console.log(JSON.stringify(astIR).slice(-50000));
+
+  console.log('ASTIR: ', JSON.stringify(astIR).length);
+  if (LOG_ASTIR) {
+    console.log(JSON.stringify(astIR).slice(0, 50000));
+    console.log(JSON.stringify(astIR).slice(-50000));
+  }
+
   console.time('toTypedAST');
-  const typedAST = ast.toTypedAST(astIR);
+  const typedAST = toTypedAST(astIR);
   console.timeEnd('toTypedAST');
-  // console.log(JSON.stringify(typedAST).length);
+
   console.time('jsonSemantics');
   const data = jsonSemantics.evaluate(typedAST);
   console.timeEnd('jsonSemantics');
-  console.log(data);
+
+  if (LOG_DATA)
+    console.log(data);
 } else {
   console.log(JSON.stringify(result).slice(0, 50000));
   console.log(JSON.stringify(result).slice(-50000));

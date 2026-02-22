@@ -1,7 +1,6 @@
-import { StateNode, IterationNode, TerminalNode, type AnyASTNode, transformCSTRoot, toTypedAST, RootNode, Source } from './ast.js';
+import { StateNode, IterationNode, TerminalNode, type AnyASTNode, RootNode, Source } from './ast.js';
 import { type StateName, type StateKey, Graph } from './graph.js';
 import { MapView, type DeepReplace, type UnionToIntersection, type Display } from './shared.js';
-import { parse } from './parser.js';
 
 type AllASTNodes_ = UnionToIntersection<AnyASTNode>;
 export type AllASTNodes = Display<
@@ -165,14 +164,6 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
       Semantics.for<K>(graph).returns<R>();
     result.with = <C>() => Semantics.with<C>().returns<R>();
     return result;
-  }
-
-  parse(graph: Graph<K>, input: string, start: StateKey<K>, ctx: C, ws?: RegExp) {
-    const result = parse(graph, input, start, ws);
-    const astIR = transformCSTRoot(result);
-    const typedAST = toTypedAST(astIR);
-    const data = this.evaluate(typedAST, ctx);
-    return data;
   }
 
   evaluate(node: AnyASTNode, ctx: C): R {

@@ -2,11 +2,21 @@
   "name": "parser",
   "version": "1.0.0",
   "description": "A parser library based on a grammar defined using nested arrays.",
-  "license": "ISC",
+  "license": "BSD-3-Clause",
   "author": "AGitUser0001",
   "type": "module",
-  "main": "index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./dsl": "./dist/dsl/dsl.js",
+    "./graph": "./dist/graph.js",
+    "./parser": "./dist/parser.js",
+    "./ast": "./dist/ast.js",
+    "./semantics": "./dist/semantics.js",
+    "./tokenize": "./dist/tokenize.js",
+    "./scc": "./dist/scc.js"
+  },
   "scripts": {
+    "build": "tsgo",
     "repl": "tsx --import ./examples/repl-preload.js"
   },
   "repository": {
@@ -16,6 +26,7 @@
   "devDependencies": {
     "@types/benchmark": "^2.1.5",
     "@types/node": "^25.2.2",
+    "@typescript/native-preview": "^7.0.0-dev.20260222.1",
     "benchmark": "^2.1.4",
     "tsx": "^4.21.0"
   }

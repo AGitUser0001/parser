@@ -212,8 +212,8 @@ export function toTypedAST(value: ASTResult & { type: 'root'; }) {
   return rootNode;
 }
 
-export type AnySemanticNode = RootNode | StateNode | IterationNode;
-function toTypedASTInternal(value: ASTResult, ownerNode: AnySemanticNode, rootSource: ASTSource): AnyASTNode {
+type OwnerNode = RootNode | StateNode | IterationNode;
+function toTypedASTInternal(value: ASTResult, ownerNode: OwnerNode, rootSource: ASTSource): AnyASTNode {
   if (!value || typeof value !== 'object')
     throw new TypeError(`Invalid value in toTypedAST!`, { cause: value });
 

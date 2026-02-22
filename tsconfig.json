@@ -1,8 +1,7 @@
 {
   "compilerOptions": {
-    "target": "esnext",
+    "target": "es2022",
     "module": "nodenext",
-    "moduleResolution": "nodenext",
     "skipLibCheck": true,
     "allowJs": true,
     "checkJs": true,
@@ -11,6 +10,7 @@
     "outDir": "./dist/"
   },
   "exclude": [
-    "./dist/**/*"
+    "./dist/**/*",
+    "./examples/**/*"
   ]
 }

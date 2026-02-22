@@ -6,6 +6,7 @@ import * as semantics from '../semantics.js';
 import * as tokenize from '../tokenize.js';
 import * as dsl from '../dsl/dsl.js';
 
+//#region tests
 console.time('transform');
 const arithmeticStates = {
   Entry: [[['*', 'Expr', [/\s*,\s*/, ['@', '!Expr']]]], ['?', 'Expr']],
@@ -38,71 +39,74 @@ const arithmeticStates = {
 
 export const g = graph.input_to_graph<keyof typeof arithmeticStates>(arithmeticStates);
 console.timeEnd('transform');
-console.time('run');
-console.time('s1');
-const okCases = [
-  '1',
-  '12',
-  '1+2',
-  '1+2*3',
-  '1*2+3',
-  '1*(2+3)',
-  '(1+2)*3',
-  '1+2+3+4',
-  '2*3*4',
-  '2*(3+4*5)',
-  '-1',
-  '--1',
-  '-(1+2)',
-  '1+-2',
-  '1*-2',
-  '-1*-2',
-  '10/2/5',
-  '10/(2/5)',
-  // New (ws skipping exists)
-  '10 + 2',
-  ' 5 * (3+ 4* 5 ) '
-];
 
-for (const input of okCases) {
-  const r = parser.parse(g, input, 'Entry');
-  if (!r.ok || r.pos !== input.length) {
-    console.error('❌ FAIL (valid)', input, JSON.stringify(r));
-    throw new Error('valid test failed');
+export function run() {
+  console.time('run');
+  console.time('s1');
+  const okCases = [
+    '1',
+    '12',
+    '1+2',
+    '1+2*3',
+    '1*2+3',
+    '1*(2+3)',
+    '(1+2)*3',
+    '1+2+3+4',
+    '2*3*4',
+    '2*(3+4*5)',
+    '-1',
+    '--1',
+    '-(1+2)',
+    '1+-2',
+    '1*-2',
+    '-1*-2',
+    '10/2/5',
+    '10/(2/5)',
+
+    '10 + 2',
+    ' 5 * (3+ 4* 5 ) '
+  ];
+
+  for (const input of okCases) {
+    const r = parser.parse(g, input, 'Entry');
+    if (!r.ok || r.pos !== input.length) {
+      console.error('❌ FAIL (valid)', input, JSON.stringify(r));
+      throw new Error('valid test failed');
+    }
   }
-}
-console.timeEnd('s1');
-console.log('✅ deterministic valid cases passed');
-console.time('s2');
+  console.timeEnd('s1');
+  console.log('✅ deterministic valid cases passed');
+  console.time('s2');
 
-const badCases = [
-  // '', // Valid now
-  '+',
-  '*',
-  '1+',
-  '1*',
-  '(1+2',
-  '1+2)',
-  '()',
-  '(*)',
-  '1/**/2',
-  '1++2',
-  '1**2',
-  '--',
-  '-',
-  '1//2',
-];
+  const badCases = [
+    // '', // Valid now
+    '+',
+    '*',
+    '1+',
+    '1*',
+    '(1+2',
+    '1+2)',
+    '()',
+    '(*)',
+    '1/**/2',
+    '1++2',
+    '1**2',
+    '--',
+    '-',
+    '1//2',
+  ];
 
-for (const input of badCases) {
-  const r = parser.parse(g, input, 'Entry');
-  if (r.ok) {
-    console.error('❌ FAIL (invalid)', input, r);
-    throw new Error('invalid test failed');
+  for (const input of badCases) {
+    const r = parser.parse(g, input, 'Entry');
+    if (r.ok) {
+      console.error('❌ FAIL (invalid)', input, r);
+      throw new Error('invalid test failed');
+    }
   }
+  console.timeEnd('s2');
+  console.timeEnd('run');
+  console.log('✅ deterministic invalid cases passed');
 }
-console.timeEnd('s2');
-console.timeEnd('run');
-console.log('✅ deterministic invalid cases passed');
 
 export const s = semantics.Semantics.returns<number>()('attr', g, {
   Entry(expressions, extra) {
@@ -139,6 +143,7 @@ export const s = semantics.Semantics.returns<number>()('attr', g, {
     return +num.value;
   }
 });
+//#endregion
 
 export function timeof<T extends (...args: any[]) => any>(fn: T, ...args: Parameters<T>): ReturnType<T> {
   console.time(fn.name);
