@@ -34,7 +34,7 @@ Terminal = prefixes (terminal | string) #postfixes
 
 postfixes = postfix*
 
-postfix = />\s*[A-Za-z0-9_]+(\s*,\s*[A-Za-z0-9_]+)*|[*?+@]/
+postfix = />[A-Za-z0-9_]+(,[A-Za-z0-9_]+)*|[*?+@]/
 
 prefixes = prefix*
 
