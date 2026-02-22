@@ -5,9 +5,9 @@ import { extractOperators, type Operators } from './parser.js';
 export type IterationOperator = '*' | '+' | '?' | '@';
 const iterationOperatorSet: Set<IterationOperator> & { has(k: string): k is IterationOperator; } =
   new Set<IterationOperator>(['*', '?', '+', '@']) as any;
-export type Operator = '#' | '%' | '!' | '&' | Exclude<IterationOperator, '@'> | '$';
+export type Operator = '#' | '%' | '!' | '&' | Exclude<IterationOperator, '@'> | '$' | '/';
 const operatorSet: Set<Operator> & { has(k: string): k is Operator; } =
-  new Set<Operator>(['#', '%', '!', '&', '*', '?', '+', '$']) as any;
+  new Set<Operator>(['#', '%', '!', '&', '*', '?', '+', '$', '/']) as any;
 
 const standaloneOperatorSet: Set<StandaloneOperator> & { has(k: string): boolean; } =
   new Set<StandaloneOperator>([...operatorSet, '@']) as any;
@@ -20,24 +20,26 @@ type Q = '*' | '?' | '+';
 type R1 = '!' | '&';
 type R2 = '#' | '%';
 type R3 = '$';
-type B1 = `${R1 | R3}${R2}`;
-type B2 = `${R2 | R3}${R1}`;
-type B3 = `${R1 | R2}${R3}`;
+type R4 = '/';
+type B1 = `${R1 | R3}${R2 | R4}`;
+type B2 = `${R2 | R3}${R1 | R4}`;
+type B3 = `${R1 | R2}${R3 | R4}`;
+type B4 = `${R4}${R1 | R2 | R3}`;
 
 type OperatorPrefixed<K extends StateName> = K extends any ?
   | `${Operator}${V_<K>}`
-  | `${Q}${R1 | R2 | R3}${V_<K>}`
-  | `${R1 | R2 | R3}${Q}${V_<K>}`
+  | `${Q}${R1 | R2 | R3 | R4}${V_<K>}`
+  | `${R1 | R2 | R3 | R4}${Q}${V_<K>}`
 
-  | `${B1 | B2 | B3}${V_<K>}`
+  | `${B1 | B2 | B3 | B4}${V_<K>}`
 
-  | `${Q}${B1 | B2 | B3}${V_<K>}`
+  | `${Q}${B1 | B2 | B3 | B4}${V_<K>}`
+  | `${B1 | B2 | B3 | B4}${Q}${V_<K>}`
 
-  | `${B1 | B2}${Q}${V_<K>}`
-
-  | `${R2 | R3}${Q}${R1}${V_<K>}`
-  | `${R1 | R3}${Q}${R2}${V_<K>}`
-  | `${R1 | R2}${Q}${R3}${V_<K>}` : never;
+  | `${R2 | R3}${Q}${R1 | R4}${V_<K>}`
+  | `${R1 | R3}${Q}${R2 | R4}${V_<K>}`
+  | `${R1 | R2}${Q}${R3 | R4}${V_<K>}`
+  | `${R4}${Q}${R1 | R2 | R3}${V_<K>}` : never;
 
 type V_<K extends StateName> = StateKey<K> | Generic;
 
@@ -494,6 +496,13 @@ function finalizeNode<K extends StateName>(
       );
 
     const at = operators.has('@');
+    const orderedChoice = operators.has('/');
+    if (orderedChoice && !(node instanceof Choice))
+      throw new Error(
+        `Ordered choice operator '/' can only be applied to Choice`,
+        { cause: { node, graph } }
+      );
+
     const rewind = operators.has('$');
     const lookahead = plookahead || nlookahead;
     const repetition = repetition0 || repetition1 || optional;

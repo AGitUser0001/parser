@@ -18,7 +18,7 @@ const jsonStates = {
   Entry: [
     'Value>json'
   ],
-  Value: [['Object', 'Array', 'string', 'number', 'boolean', 'null']],
+  Value: [['/', 'Object', 'Array', 'string', 'number', 'boolean', 'null']],
   Object: [
     /\{/,
     {

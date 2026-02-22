@@ -20,9 +20,9 @@ Sequence = {
   inner = Term*
 }
 
-Term = Group | Reference | Terminal | Call
+Term = /(Group | Terminal | Call | Reference)
 
-Group = prefixes '(' Choice_inner ')' #postfixes
+Group = group_prefixes '(' Choice_inner ')' #postfixes
 
 Reference = prefixes (identifier | generic) #postfixes
 
@@ -37,8 +37,10 @@ postfixes = postfix*
 postfix = />[A-Za-z0-9_]+(,[A-Za-z0-9_]+)*|[*?+@]/
 
 prefixes = prefix*
-
 prefix = /[#%!&$]/
+
+group_prefixes = (prefix | ordered_choice_operator)*
+ordered_choice_operator = '/'
 
 identifier = /[A-Za-z_][A-Za-z0-9_]*/
 

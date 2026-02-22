@@ -21,9 +21,9 @@ export const grammar = {
     inner: '*Term'
   },
 
-  Term: [['Group', 'Reference', 'Terminal', 'Call']],
+  Term: [['/', 'Group', 'Terminal', 'Call', 'Reference']],
 
-  Group: ['prefixes', /\(/, 'Choice_inner', /\)/, '#postfixes'],
+  Group: ['group_prefixes', /\(/, 'Choice_inner', /\)/, '#postfixes'],
 
   Reference: ['prefixes', ['identifier', 'generic'], '#postfixes'],
 
@@ -37,6 +37,9 @@ export const grammar = {
 
   prefixes: '*prefix',
   prefix: /[#%!&$]/,
+
+  group_prefixes: ['*', ['prefix', 'ordered_choice_operator']],
+  ordered_choice_operator: /[/]/,
 
   identifier: /[A-Za-z_][A-Za-z0-9_]*/,
   generic: /@[A-Za-z_][A-Za-z0-9_]*/,
@@ -295,6 +298,9 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
   },
   prefixes(opIter) {
     return this.use('postfixes', opIter);
+  },
+  group_prefixes(opIter) {
+    return this.use('prefixes', opIter);
   },
 
   Arg(identifierNode, _eqNode, choiceNode) {

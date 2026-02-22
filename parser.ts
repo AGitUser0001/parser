@@ -49,7 +49,7 @@ function improves(next: Result, prev: Result): boolean {
 }
 
 function improves_error(next: Result, prev: Result): boolean {
-  return !prev.ok && !next.ok && (next.pos > prev.pos || prev.type === 'none');
+  return !prev.ok && !next.ok && (next.pos >= prev.pos);
 }
 
 function parseState<K extends StateName>(
@@ -139,6 +139,26 @@ function evalChoice<K extends StateName>(
   pos: number,
   lexical: boolean
 ): Result {
+  const ops = choice.operators[0];
+  const hasOrderedChoice = ops.has('/');
+  if (hasOrderedChoice) {
+    return withOperators(ctx, choice, pos, function (pos: number, body, lex) {
+      let error: Result = { type: 'none', ok: false, pos, value: null };
+      let errorId: number | null = null;
+      for (let i = 0; i < body.length; i++) {
+        const alt = body[i];
+        throwOnGeneric(alt);
+        const r = evalTerm(ctx, alt, pos, lex);
+        if (r.ok)
+          return { type: 'choice', ok: r.ok, pos: r.pos, value: r, alt: i };
+        if (improves_error(r, error)) {
+          error = r;
+          errorId = i;
+        }
+      }
+      return { type: 'choice', ok: error.ok, pos: error.pos, value: error, alt: errorId };
+    }, lexical);
+  }
   return withOperators(ctx, choice, pos, function (pos: number, body, lex) {
     let best: Result = { type: 'none', ok: false, pos, value: null };
     let bestId: number | null = null;
