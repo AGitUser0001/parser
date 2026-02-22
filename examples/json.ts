@@ -61,16 +61,16 @@ const jsonSemantics = new semantics.Semantics('json', jsonGraph, {
   },
 
   Object(_s1, items, _s2) {
-    const pairs = this(items);
+    const pairs: semantics.AllASTNodes[][] = this(items);
 
-    const obj: any = {};
+    const obj: Record<string, any> = {};
     for (const [key, _colon, value] of pairs) {
       obj[this(key)] = this(value);
     }
     return obj;
   },
 
-  Array(_s1, items, _s2) {
+  Array(_s1, items, _s2): any[] {
     return this(items).flat().map(this);
   },
 
