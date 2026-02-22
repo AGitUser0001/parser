@@ -1,14 +1,23 @@
-import { type CallToken, type MutableArrayTokenExpr, type MutableArrayTokenSequence, type StandaloneOperator, type State, type StateName, type StateObject, type States, type Token } from "../graph.js";
+import type { CallToken, MutableArrayTokenExpr, MutableArrayTokenSequence, MutableStateObject, StandaloneOperator, StateName, Token, MutableState, MutableStates } from "../graph.js";
 import { input_to_graph, toTypedAST, transformCSTRoot, parse, Semantics } from "../index.js";
 
 export const grammar = {
   Grammar: ['*', 'State', ['?', /;/]],
 
-  StateObject: [/\{/, [['*', 'State_reg', ['?', /;/]]], /\}/],
+  StateObject: ['group_prefixes', /\{/, [['*', 'State_reg', ['?', /;/]]], /\}/, '#postfixes'],
 
   State: {
-    reg: ['identifier', /=/, 'Choice_outer'],
+    /**
+     *  State_obj must be first for some cases on a single line:
+     *  ```
+     *  State = /{}; A = /1/
+     *  ````
+     * If State_obj is second; this will parse as
+     * "State" "=" "/" "{}; A = /1" "/"
+     */
     obj: ['identifier', /=/, 'StateObject'],
+    reg: ['identifier', /=/, 'Choice_outer'],
+    _: [['/']]
   },
 
   Choice: {
@@ -44,7 +53,7 @@ export const grammar = {
   identifier: /[A-Za-z_][A-Za-z0-9_]*/,
   generic: /@[A-Za-z_][A-Za-z0-9_]*/,
 
-  terminal: [/\//, /(?:\\.|[^/\\[]|\[(?:\\.|[^\]\\])*\])+/, /\//, /[a-z]*/],
+  terminal: [/\//, /(?:\\.|[^/\\[\r\n]|\[(?:\\.|[^\]\\\r\n])*\])+/, /\//, /[a-z]*/],
 
   string: {
     single: [/'/, /[^']+/, /'/],
@@ -55,9 +64,9 @@ export const grammar = {
 export const graph = input_to_graph<keyof typeof grammar>(grammar);
 
 type Data<K extends StateName> =
-  | { t: 'states'; v: States<K>; }
-  | { t: 'state_obj'; v: StateObject<K>; }
-  | { t: 'state'; v: State<K>; name: K; }
+  | { t: 'states'; v: MutableStates<K>; }
+  | { t: 'state_obj'; v: MutableStateObject<K>; }
+  | { t: 'state'; v: MutableState<K>; name: K; }
   | { t: 'input'; subType?: undefined; v: Token<K> | StandaloneOperator; }
   | { t: 'input'; subType: 'seq'; v: MutableArrayTokenSequence<K>; }
   | { t: 'input'; subType: 'choice'; v: MutableArrayTokenExpr<K>; }
@@ -114,7 +123,7 @@ function stringToRegExp(string: string, flags?: string | undefined) {
 export const createSemantics = Semantics.for(graph);
 export const semantics = createSemantics<Data<StateName>>('grammar', {
   Grammar(stateIter) {
-    const states: States<StateName> = Object.create(null);
+    const states: MutableStates<StateName> = Object.create(null);
 
     for (const [node, _semicolonIter] of stateIter.iterations) {
       const data = this(node);
@@ -127,8 +136,14 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
     return { t: 'states', v: states };
   },
 
-  StateObject(lb, stateIter, rb) {
-    const states: StateObject<StateName> = Object.create(null);
+  StateObject(prefixes, lp, stateIter, rp, postfixes) {
+    const prefixA = this(prefixes);
+    assertType(prefixA, 'operators');
+
+    const postfixA = this(postfixes);
+    assertType(postfixA, 'operators');
+
+    const states: MutableStateObject<StateName> = Object.create(null);
 
     for (const [node, _semicolonIter] of stateIter.iterations) {
       const data = this(node);
@@ -138,6 +153,18 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
       if (states[data.name])
         throw new Error(`Duplicate subState: ${data.name}`, { cause: { data, node, states } });
       states[data.name] = data.v;
+    }
+
+    const operators = [...prefixA.v, ...postfixA.v];
+    if (states['_'])
+      states['_'] = [collapseExpr([states['_']])];
+    if (operators.length) {
+      if (!states['_'])
+        states['_'] = [[]];
+      const arr = states['_'][0];
+      if (!Array.isArray(arr))
+        throw new TypeError(`Internal error: states['_'][0] is not Array?`, { cause: { states, arr } });
+      arr.push(...operators);
     }
 
     return { t: 'state_obj', v: states };

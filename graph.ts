@@ -78,6 +78,10 @@ export type State<K extends StateName> = Exclude<TokenSequence<K>, CallToken<K>>
 export type StateObject<K extends StateName> = Record<StateName, TokenSequence<K>>;
 export type States<K extends StateName> = Record<K, State<K>>;
 
+export type MutableState<K extends StateName> = Exclude<MutableTokenSequence<K>, CallToken<K>> | MutableStateObject<K>;
+export type MutableStateObject<K extends StateName> = Record<StateName, MutableTokenSequence<K>>;
+export type MutableStates<K extends StateName> = Record<K, MutableState<K>>;
+
 function getOperators<K extends StateName>(xs: GraphCollection<K>): Operators<K> {
   const [ops, attrs, body] = extractOperators(xs);
   return Object.freeze([
@@ -313,6 +317,16 @@ export function input_to_graph<K extends StateName>(input: States<K>) {
       const choice = new Choice<K>();
       sequence.push(choice);
       for (const subLabel of subLabels) {
+        if (subLabel === '_') {
+          const data = state[subLabel];
+          if (!Array.isArray(data) || data.length !== 1 || !Array.isArray(data[0]))
+            throw new Error(`Special subLabel _ must be structured [[...]]`, {
+              cause: { states, stateLabel, subLabel, graphMap }
+            });
+          const extra: ArrayTokenExpr<K> = data[0];
+          choice.push(...convertExpr(extra));
+          continue;
+        }
         const label = `${stateLabel}_${subLabel}` as const;
         add(label, convertSequence(state[subLabel]));
         choice.push(label);

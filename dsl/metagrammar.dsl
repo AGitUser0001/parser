@@ -3,11 +3,19 @@
 
 Grammar = (State ';'?)*
 
-StateObject = '{' (State_reg ';'?)* '}'
+StateObject = group_prefixes '{' (State_reg ';'?)* '}' #postfixes
 
-State = {
-  reg = identifier '=' Choice_outer
+State = /{
+  /**
+    *  State_obj must be first for some cases on a single line:
+    *  ```
+    *  State = /{}; A = /1/
+    *  ````
+    * If State_obj is second; this will parse as
+    * "State" "=" "/" "{}; A = /1" "/"
+    */
   obj = identifier '=' StateObject
+  reg = identifier '=' Choice_outer
 }
 
 Choice = {
@@ -46,7 +54,7 @@ identifier = /[A-Za-z_][A-Za-z0-9_]*/
 
 generic = /@[A-Za-z_][A-Za-z0-9_]*/
 
-terminal = '/' /(?:\\.|[^/\\[]|\[(?:\\.|[^\]\\])*\])+/ '/' /[a-z]*/
+terminal = '/' /(?:\\.|[^/\\[\r\n]|\[(?:\\.|[^\]\\\r\n])*\])+/ '/' /[a-z]*/
 
 string = {
   single = "'" /[^']+/ "'"
