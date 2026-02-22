@@ -17,7 +17,7 @@ export const grammar = {
   },
 
   Sequence: {
-    outer: ['#', '*', [['!', ['!', /(?<=\n\s*)/], ['%', /(?<=\n\s*)/]]], ['!', '%', /[\]|)}>;,]/], '%Term'],
+    outer: ['#', '*', ['!', /\s*\n/], [['!', ['!', /(?<=\n\s*)/], ['%', /(?<=\n\s*)/]]], ['!', '%', /[\]|)}>;,]/], '%Term'],
     inner: '*Term'
   },
 
@@ -349,7 +349,7 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
   }
 });
 
-export const WS_REGEX = /\s*(?:\/\/.*$\s*)*/my;
+export const WS_REGEX = /(?:\s+|\/\/.*$|\/\*[\s\S]*?\*\/)+/my;
 export function load(input: string) {
   const result = semantics.parse(graph, input, 'Grammar', void 0, WS_REGEX);
   assertType(result, 'states');

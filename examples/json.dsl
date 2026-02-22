@@ -1,13 +1,12 @@
 Entry = Value > json;
 
-Value = {
-  obj  = Object
-  arr  = Array
-  str  = string
-  num  = number
-  bool = boolean
-  null = 'null'
-};
+Value =
+  | Object
+  | Array
+  | string
+  | number
+  | boolean
+  | null;
 
 Object = (
   '{'
@@ -36,3 +35,5 @@ number = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/;
 boolean = /true|false/;
 
 Items = (@Value (@Sep @Value)*)?;
+
+null = 'null';

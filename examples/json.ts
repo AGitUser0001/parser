@@ -7,14 +7,7 @@ const jsonStates = {
   Entry: [
     'Value>json'
   ],
-  Value: {
-    obj: 'Object',
-    arr: 'Array',
-    str: 'string',
-    num: 'number',
-    bool: 'boolean',
-    null: /null/,
-  },
+  Value: [['Object', 'Array', 'string', 'number', 'boolean', 'null']],
   Object: [
     /\{/,
     {
@@ -41,6 +34,8 @@ const jsonStates = {
   number: /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/,
   boolean: /true|false/,
   Items: ['?', '@Value', [['*', '@Sep', '@Value']]],
+
+  null: 'null'
 } as const;
 const jsonGraph = graph.input_to_graph<keyof typeof jsonStates>(jsonStates);
 
@@ -107,7 +102,7 @@ const jsonSemantics = new semantics.Semantics('json', jsonGraph, {
     return node.value === 'true';
   },
 
-  Value_null(_null) {
+  null(_null) {
     return null;
   }
 });
