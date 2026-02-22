@@ -9,6 +9,7 @@ const LOG_DATA = false;
 
 // const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
 const input = await readFile('./json_sample1k.json', 'utf-8');
+console.log('Input: ', input.length);
 
 // -----------------------------------------------------------------------
 
