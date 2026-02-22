@@ -27,79 +27,68 @@ export type Token =
 
 export function tokenize(root: Result): Token[] {
   const tokens: Token[] = [];
-  let cursor = 0;
-
   function walk(node: Result) {
-    // 1. Consume leading whitespace if present
-    if (node.ws) {
-      const start = cursor;
-      const end = cursor + node.ws.length;
+    let len = 0, wslen = 0;
+    let wstoken: Token | null = null;
 
-      tokens.push({
+    if (node.ws) {
+      len += node.ws.length;
+      wslen = node.ws.length;
+
+      tokens.push(wstoken = {
         type: 'ws',
         value: node.ws,
-        start,
-        end
+        start: 0,
+        end: 0
       });
-
-      cursor = end;
     }
 
     switch (node.type) {
       case 'state': {
-
-        tokens.push({
+        let entertoken: Token | null = null;
+        tokens.push(entertoken = {
           type: 'enter',
           state: node.state,
-          pos: cursor
+          pos: 0
         });
 
         if (node.value)
-          walk(node.value);
+          len += walk(node.value);
 
         tokens.push({
           type: 'exit',
           state: node.state,
-          pos: cursor
+          pos: node.pos
         });
 
+        entertoken.pos = node.pos - len + wslen;
         break;
       }
 
       case 'terminal': {
         if (!node.value)
           break;
-        const value = node.value;
-        const start = cursor;
-        const end = start + value.length;
 
-        if (node.pos !== end) {
-          throw new Error("Cursor mismatch", {
-            cause: { cursor, value, node }
-          });
-        }
-
+        len += node.value.length;
         tokens.push({
           type: 'terminal',
-          value,
-          start,
-          end
+          value: node.value,
+          start: node.pos - len + wslen,
+          end: node.pos
         });
-
-        cursor = end;
         break;
       }
 
       case 'sequence':
       case 'iteration':
         for (const child of node.value)
-          walk(child);
+          len += walk(child);
         break;
 
       case 'choice':
       case 'attrs':
       case 'rewind':
-        walk(node.value);
+        len += walk(node.value);
         break;
 
       case 'none':
@@ -107,26 +96,30 @@ export function tokenize(root: Result): Token[] {
         break;
 
       case 'root':
-        walk(node.value);
+        len += walk(node.value);
         if (node.trailing_ws) {
-          const start = cursor;
-          const end = start + node.trailing_ws.length;
+          len += node.trailing_ws.length;
 
           tokens.push({
             type: 'ws',
             value: node.trailing_ws,
-            start,
-            end
+            start: node.pos - node.trailing_ws.length,
+            end: node.pos
           });
-
-          cursor = end;
         }
         break;
 
       default:
         const _exhaustive: never = node;
-        throw new TypeError('Invalid result!', { cause: { node, tokens, cursor } });
+        throw new TypeError('Invalid result!', { cause: { node, tokens, len } });
     }
+
+    if (wstoken) {
+      wstoken.start = node.pos - len;
+      wstoken.end = node.pos - len + wslen;
+    }
+
+    return len;
   }
 
   walk(root);
