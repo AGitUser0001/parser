@@ -89,9 +89,10 @@ function assertSubType<K extends StateName, T extends (Data<K> & { t: 'input'; }
 }
 
 function collapse(v: MutableArrayTokenSequence<StateName>): MutableArrayTokenSequence<StateName> {
-  if (v.length === 1 && Array.isArray(v[0]))
-    if (v[0].length === 1 && Array.isArray(v[0][0]))
-      v = v[0][0];
+  while (
+    (v.length === 1 && Array.isArray(v[0])) &&
+    (v[0].length === 1 && Array.isArray(v[0][0]))
+  ) v = v[0][0];
   return v.map(value => {
     if (Array.isArray(value)) {
       value = collapseExpr(value);
@@ -102,9 +103,10 @@ function collapse(v: MutableArrayTokenSequence<StateName>): MutableArrayTokenSeq
   });
 }
 function collapseExpr(v: MutableArrayTokenExpr<StateName>): MutableArrayTokenExpr<StateName> {
-  if (v.length === 1 && Array.isArray(v[0]))
-    if (v[0].length === 1 && Array.isArray(v[0][0]))
-      v = v[0][0];
+  while (
+    (v.length === 1 && Array.isArray(v[0])) &&
+    (v[0].length === 1 && Array.isArray(v[0][0]))
+  ) v = v[0][0];
   return v.map(value => {
     if (Array.isArray(value)) {
       value = collapse(value);
@@ -256,10 +258,20 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
     const postfixA = this(postfixes);
     assertType(postfixA, 'operators');
 
+    const operators = [...prefixA.v, ...postfixA.v];
+    if (choice.v.length === 1 && Array.isArray(choice.v[0])) {
+      if (!operators.includes('/'))
+        return {
+          t: 'input',
+          subType: 'choice',
+          v: [[...operators, ...choice.v[0]]]
+        };
+    }
+
     return {
       t: 'input',
       subType: 'choice',
-      v: [...prefixA.v, ...postfixA.v, ...choice.v]
+      v: [...operators, ...choice.v]
     };
   },
 

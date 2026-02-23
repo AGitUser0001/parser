@@ -113,3 +113,5 @@ type Replacement<M extends [any, any], T> =
 //
 
 export type Display<T> = T & { [K in never]: never };
+
+export const freeze = Object.freeze;

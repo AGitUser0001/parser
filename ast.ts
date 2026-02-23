@@ -29,7 +29,7 @@ export function transformCSTRoot(result: Result): ASTResult & { type: 'root'; } 
   if (out[0].type !== 'state')
     throw new Error(`transformCSTRoot: Got transformed type ${out[0].type}`, { cause: result });
 
-  const rootSource: ASTSource = {
+  const source: ASTSource = {
     start: sourceCon.start ?? 0,
     end: sourceCon.end ?? 0,
     text: sourceCon.text.join('')
@@ -38,9 +38,9 @@ export function transformCSTRoot(result: Result): ASTResult & { type: 'root'; } 
   return {
     type: 'root',
     value: out[0],
-    source: rootSource,
-    start: rootSource.start,
-    end: rootSource.end
+    source: source,
+    start: source.start,
+    end: source.end
   };
 }
 
@@ -148,13 +148,13 @@ export abstract class ASTNode {
     public readonly children: AnyASTNode[],
     public readonly start: number,
     public readonly end: number,
-    public readonly root: ASTSource
+    public readonly _source: ASTSource
   ) { }
 
   get source() {
-    return this.root.text.slice(
-      this.start - this.root.start,
-      this.end - this.root.start
+    return this._source.text.slice(
+      this.start - this._source.start,
+      this.end - this._source.start
     );
   }
 }
@@ -163,8 +163,8 @@ export class RootNode extends ASTNode {
   constructor(
     parent: AnyASTNode | null,
     children: AnyASTNode[],
-    start: number, end: number, root: ASTSource
-  ) { super(parent, children, start, end, root); }
+    start: number, end: number, source: ASTSource
+  ) { super(parent, children, start, end, source); }
 }
 
 export class StateNode extends ASTNode {
@@ -172,28 +172,28 @@ export class StateNode extends ASTNode {
   constructor(
     parent: AnyASTNode | null,
     children: AnyASTNode[],
-      start: number, end: number, root: ASTSource,
+    start: number, end: number, source: ASTSource,
     public readonly state: StateName
-  ) { super(parent, children, start, end, root); }
+  ) { super(parent, children, start, end, source); }
 }
 
 export class TerminalNode extends ASTNode {
   constructor(
     parent: AnyASTNode | null,
     children: [],
-      start: number, end: number, root: ASTSource,
+    start: number, end: number, source: ASTSource,
     public readonly value: MatcherValue
-  ) { super(parent, children, start, end, root); }
+  ) { super(parent, children, start, end, source); }
 }
 
 export class IterationNode extends ASTNode {
   constructor(
     parent: AnyASTNode | null,
     children: AnyASTNode[],
-      start: number, end: number, root: ASTSource,
+    start: number, end: number, source: ASTSource,
     public readonly kind: IterationOperator,
     public readonly iterations: AnyASTNode[][]
-  ) { super(parent, children, start, end, root); }
+  ) { super(parent, children, start, end, source); }
 }
 
 export type AnyASTNode = RootNode | StateNode | TerminalNode | IterationNode;
@@ -204,35 +204,35 @@ export function toTypedAST(value: ASTResult & { type: 'root'; }) {
   if (value.type !== 'root')
     throw new Error(`ASTResult.type: expected 'root', got: ${value.type}`, { cause: value });
 
-  const rootSource = value.source;
-  const rootNode = new RootNode(null, [], value.start, value.end, rootSource);
-  rootNode.children.push(toTypedASTInternal(value.value, rootNode, rootSource));
+  const source = value.source;
+  const rootNode = new RootNode(null, [], value.start, value.end, source);
+  rootNode.children.push(toTypedASTInternal(value.value, rootNode, source));
   return rootNode;
 }
 
 type OwnerNode = RootNode | StateNode | IterationNode;
-function toTypedASTInternal(value: ASTResult, ownerNode: OwnerNode, rootSource: ASTSource): AnyASTNode {
+function toTypedASTInternal(value: ASTResult, ownerNode: OwnerNode, source: ASTSource): AnyASTNode {
   if (!value || typeof value !== 'object')
     throw new TypeError(`Invalid value in toTypedAST!`, { cause: value });
 
   switch (value.type) {
     case 'state':
       const children = Array(value.value.length);
-      const stateNode = new StateNode(ownerNode, children, value.start, value.end, rootSource, value.state);
+      const stateNode = new StateNode(ownerNode, children, value.start, value.end, source, value.state);
       for (let i = 0; i < value.value.length; i++) {
-        children[i] = toTypedASTInternal(value.value[i], stateNode, rootSource);
+        children[i] = toTypedASTInternal(value.value[i], stateNode, source);
       }
       return stateNode;
     case 'terminal':
-      return new TerminalNode(ownerNode, [], value.start, value.end, rootSource, value.value);
+      return new TerminalNode(ownerNode, [], value.start, value.end, source, value.value);
     case 'iteration':
       const iterations: AnyASTNode[][] = Array(value.value.length);
-      const iterationNode = new IterationNode(ownerNode, [], value.start, value.end, rootSource, value.kind, iterations);
+      const iterationNode = new IterationNode(ownerNode, [], value.start, value.end, source, value.kind, iterations);
       for (let i = 0; i < value.value.length; i++) {
         const iter = value.value[i];
         const iteration = iterations[i] = Array(iter.length);
         for (let j = 0; j < iter.length; j++) {
-          const transformed = toTypedASTInternal(iter[j], iterationNode, rootSource);
+          const transformed = toTypedASTInternal(iter[j], iterationNode, source);
           iteration[j] = transformed;
           iterationNode.children.push(transformed);
         }
@@ -244,7 +244,7 @@ function toTypedASTInternal(value: ASTResult, ownerNode: OwnerNode, rootSource: 
       if (value.value.length !== 1)
         throw new Error(`Attribute node must contain a result with arity 1`, { cause: value });
       const target = value.value[0];
-      const resultNode = toTypedASTInternal(target, ownerNode, rootSource);
+      const resultNode = toTypedASTInternal(target, ownerNode, source);
       for (const attr of value.attrs) {
         if (ownerNode.attributeMap.has(attr))
           throw new Error(`Attribute node conflict: ${attr}`, { cause: { value, ownerNode } });

@@ -251,7 +251,8 @@ function matchRegex(input: string, re: RegExp, pos: number): Result {
 export type Operators<K extends StateName> = readonly [
   ops: ReadonlySet<StandaloneOperator>,
   attrs: readonly string[],
-  body: readonly (Exclude<GraphToken<K>, StandaloneOperator> | Generic)[]
+  body: readonly (Exclude<GraphToken<K>, StandaloneOperator> | Generic)[],
+  opMask: number
 ];
 
 function throwOnGeneric<K extends StateName>(x: Exclude<GraphToken<K>, StandaloneOperator> | Generic):
@@ -263,29 +264,6 @@ function throwOnGeneric<K extends StateName>(x: Exclude<GraphToken<K>, Standalon
     );
 }
 
-export function extractOperators<K extends StateName>(
-  xs: GraphCollection<K>
-): Operators<K> {
-  const ops = new Set<StandaloneOperator>();
-  const attrs: string[] = [];
-  const body: (Exclude<GraphToken<K>, StandaloneOperator> | Generic)[] = [];
-
-  for (const x of xs) {
-    if (isOperator(x)) {
-      if (isAttr(x))
-        attrs.push(...parseAttr(x));
-      else if (isGeneric(x))
-        body.push(x);
-      else
-        ops.add(x);
-    } else {
-      body.push(x as Exclude<GraphToken<K>, StandaloneOperator>);
-    }
-  }
-
-  return [ops, attrs, body];
-}
-
 function withOperators<K extends StateName>(
   ctx: ParserCtx<K>,
   seq: GraphCollection<K>,
@@ -294,17 +272,7 @@ function withOperators<K extends StateName>(
   lexical: boolean,
   operators = seq.operators,
 ): Result {
-  const [ops, attrs, body] = operators;
-  if (attrs.length > 0) {
-    const result = withOperators(ctx, seq, pos, run, lexical, [ops, [], body]);
-    return {
-      type: 'attrs',
-      ok: result.ok,
-      pos: result.pos,
-      value: result,
-      attrs: attrs.slice()
-    };
-  }
+  const [ops, attrs, body, opMask] = operators;
 
   const hasPosLA = ops.has('&');
   const hasNegLA = ops.has('!');
@@ -321,9 +289,7 @@ function withOperators<K extends StateName>(
   let result: Result | undefined;
   if (hasAt) {
     let [ws, runPos] = skipWs(ctx, lexical, pos);
-    const withoutAt = new Set(ops);
-    withoutAt.delete('@');
-    const r = withOperators(ctx, seq, runPos, run, lexical, [withoutAt, attrs, body]);
+    const r = run(runPos, body, lexical);
     result = {
       type: 'iteration',
       ok: r.ok,
@@ -334,7 +300,6 @@ function withOperators<K extends StateName>(
     };
   }
 
-  // --- repetition ---
   if (hasOpt) {
     let [ws, runPos] = skipWs(ctx, lexical, pos);
     const r = run(runPos, body, lexical);
@@ -394,7 +359,7 @@ function withOperators<K extends StateName>(
   if (!result) result = run(pos, body, lexical);
 
   // --- rewind ---
-  if (hasRewind && !hasOpt && !hasStar && !hasPlus) {
+  if (hasRewind && !hasAt && !hasOpt && !hasStar && !hasPlus) {
     result = {
       type: 'rewind',
       ok: result.ok,
@@ -421,6 +386,16 @@ function withOperators<K extends StateName>(
       pos,
       value: result,
       positive: false
+    };
+  }
+
+  if (attrs.length > 0) {
+    result = {
+      type: 'attrs',
+      ok: result.ok,
+      pos: result.pos,
+      value: result,
+      attrs: attrs.slice()
     };
   }
 

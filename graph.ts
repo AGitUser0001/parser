@@ -1,6 +1,6 @@
 import { computeSCCInfo, type SccId } from './scc.js';
-import { customInspectSymbol, MapView, SetView } from './shared.js';
-import { extractOperators, type Operators } from './parser.js';
+import { customInspectSymbol, freeze, MapView, SetView } from './shared.js';
+import { type Operators } from './parser.js';
 
 export type IterationOperator = '*' | '+' | '?' | '@';
 const iterationOperatorSet: Set<IterationOperator> & { has(k: string): k is IterationOperator; } =
@@ -82,14 +82,6 @@ export type MutableState<K extends StateName> = Exclude<MutableTokenSequence<K>,
 export type MutableStateObject<K extends StateName> = Record<StateName, MutableTokenSequence<K>>;
 export type MutableStates<K extends StateName> = Record<K, MutableState<K>>;
 
-function getOperators<K extends StateName>(xs: GraphCollection<K>): Operators<K> {
-  const [ops, attrs, body] = extractOperators(xs);
-  return Object.freeze([
-    new SetView(ops),
-    Object.freeze(attrs),
-    Object.freeze(body)
-  ]);
-}
 export class Choice<K extends StateName> extends Array<SimpleToken<K> | Sequence<K> | StandaloneOperator>
   implements GraphCollection<K> {
   get [Symbol.toStringTag](): 'Choice' {
@@ -174,7 +166,7 @@ export class Graph<K extends StateName> extends MapView<StateKey<K>, Sequence<K>
     this.#sccOf = new MapView(sccInfo.sccOf);
     this.#sccMembers = new MapView(sccInfo.sccMembers);
     for (const [key, entry] of sccInfo.sccMembers)
-      Object.freeze(entry);
+      freeze(entry);
   }
   get(key: K): Sequence<K>;
   get(key: StateKey<K>): Sequence<K> | undefined;
@@ -520,6 +512,11 @@ function finalizeNode<K extends StateName>(
     const rewind = operators.has('$');
     const lookahead = plookahead || nlookahead;
     const repetition = repetition0 || repetition1 || optional;
+    if (at && repetition)
+      throw new Error(
+        `Cannot have @ operator and repetition`,
+        { cause: { node, graph } }
+      );
 
     const iteration = at || repetition;
     const lex = operators.has('#');
@@ -533,7 +530,7 @@ function finalizeNode<K extends StateName>(
     for (const item of node) {
       finalizeNode(item, seenAttrs, graph, insideIteration || iteration);
     }
-    Object.freeze(node);
+    freeze(node);
     return;
   }
 
@@ -629,6 +626,51 @@ function calculateArity_Choice(
   }
 
   return expected ?? 0;
+}
+
+const OP_MAP: Record<StandaloneOperator, number> = Object.create(null);
+{
+  let bit = 1;
+  for (const op of standaloneOperatorSet) {
+    OP_MAP[op] = bit;
+    bit <<= 1;
+  }
+  freeze(OP_MAP);
+}
+
+function getBitmask(ops: ReadonlySet<StandaloneOperator>) {
+  let mask = 0;
+  for (const op of ops) {
+    mask |= (OP_MAP[op]);
+  }
+  return mask;
+}
+
+function getOperators<K extends StateName>(xs: GraphCollection<K>): Operators<K> {
+  const ops = new Set<StandaloneOperator>();
+  const attrs: string[] = [];
+  const body: (Exclude<GraphToken<K>, StandaloneOperator> | Generic)[] = [];
+
+  for (const x of xs) {
+    if (isOperator(x)) {
+      if (isAttr(x))
+        attrs.push(...parseAttr(x));
+      else if (isGeneric(x))
+        body.push(x);
+      else
+        ops.add(x);
+    } else {
+      body.push(x as Exclude<GraphToken<K>, StandaloneOperator>);
+    }
+  }
+
+  const view = new SetView(ops);
+  return freeze([
+    view,
+    freeze(attrs),
+    freeze(body),
+    getBitmask(view)
+  ]);
 }
 
 export function graph_to_input<K extends StateName>(graph: Graph<K>): States<StateKey<K>> {
