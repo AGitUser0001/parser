@@ -49,52 +49,6 @@ export class MapView<K, V> implements ReadonlyMap<K, V> {
   }
 }
 
-export class SetView<T> implements ReadonlySet<T> {
-  get [Symbol.toStringTag]() {
-    return 'SetView';
-  }
-  #set: ReadonlySet<T>;
-  constructor(set: ReadonlySet<T>) {
-    this.#set = set;
-  }
-  has(value: T): boolean {
-    return this.#set.has(value);
-  }
-  values() {
-    return this.#set.values();
-  }
-  keys() {
-    return this.#set.keys();
-  }
-  entries() {
-    return this.#set.entries();
-  }
-
-  forEach<S>(callbackfn: (this: S, value: T, value2: T, set: SetView<T>) => void, thisArg: S): void;
-  forEach(callbackfn: (value: T, value2: T, set: SetView<T>) => void): void;
-  forEach(callbackfn: (value: T, value2: T, set: SetView<T>) => void, thisArg?: any): void {
-    const self = this;
-    return this.#set.forEach(function (this: any, v, v2) {
-      return Reflect.apply(callbackfn, this, [v, v2, self]);
-    }, thisArg);
-  }
-
-  get size() {
-    return this.#set.size;
-  }
-  [Symbol.iterator]() {
-    return this.#set[Symbol.iterator]();
-  }
-  [customInspectSymbol]() {
-    class SetView extends Set<T> {
-      get [Symbol.toStringTag]() {
-        return 'SetView';
-      }
-    };
-    return new SetView(this);
-  }
-}
-
 export type UnionToIntersection<U> =
   (U extends any ? (x: U) => void : never) extends ((x: infer I) => void) ? I : never;
 
