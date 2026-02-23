@@ -30,6 +30,7 @@ export const grammar = {
     inner: '*Term'
   },
 
+  // Must be Group first, Call before Reference
   Term: [['/', 'Group', 'Terminal', 'Call', 'Reference']],
 
   Group: ['group_prefixes', /\(/, 'Choice_inner', /\)/, '#postfixes'],
