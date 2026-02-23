@@ -628,7 +628,7 @@ function calculateArity_Choice(
   return expected ?? 0;
 }
 
-const OP_MAP: Record<StandaloneOperator, number> = Object.create(null);
+export const OP_MAP: Record<StandaloneOperator, number> = Object.create(null);
 {
   let bit = 1;
   for (const op of standaloneOperatorSet) {
@@ -664,12 +664,10 @@ function getOperators<K extends StateName>(xs: GraphCollection<K>): Operators<K>
     }
   }
 
-  const view = new SetView(ops);
   return freeze([
-    view,
+    getBitmask(ops),
     freeze(attrs),
-    freeze(body),
-    getBitmask(view)
+    freeze(body)
   ]);
 }
 

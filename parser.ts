@@ -1,4 +1,4 @@
-import { Graph, isGeneric, type GraphToken, isOperator, Choice, Sequence, type GraphCollection, type StandaloneOperator, type StateKey, type StateName, isAttr, parseAttr, type IterationOperator, type Generic } from './graph.js';
+import { Graph, isGeneric, type GraphToken, isOperator, Choice, Sequence, type GraphCollection, type StandaloneOperator, type StateKey, type StateName, isAttr, parseAttr, type IterationOperator, type Generic, OP_MAP } from './graph.js';
 import type { SccId } from './scc.js';
 import type { MapView } from './shared.js';
 
@@ -139,8 +139,8 @@ function evalChoice<K extends StateName>(
   pos: number,
   lexical: boolean
 ): Result {
-  const ops = choice.operators[0];
-  const hasOrderedChoice = ops.has('/');
+  const opMask = choice.operators[0];
+  const hasOrderedChoice = opMask & OP_MAP['/'];
   if (hasOrderedChoice) {
     return withOperators(ctx, choice, pos, function (pos, body, lex) {
       let error: Result = { type: 'none', ok: false, pos, value: null };
@@ -179,16 +179,16 @@ function evalChoice<K extends StateName>(
 }
 
 function skipWs<K extends StateName>(ctx: ParserCtx<K>, lexical: boolean, pos: number): [MatcherValue | null, number] {
-  let ws = null;
-  if (!lexical) {
-    ctx.ws.lastIndex = pos;
-    const match = ctx.ws.exec(ctx.input);
-    if (match) {
-      ws = match[0];
-      pos += ws.length;
-    }
+  if (lexical) return [null, pos];
+
+  ctx.ws.lastIndex = pos;
+  const match = ctx.ws.exec(ctx.input);
+  if (match) {
+    let ws = match[0];
+    pos += ws.length;
+    return [ws, pos];
   }
-  return [ws || null, pos];
+  return [null, pos];
 }
 
 function evalTerm<K extends StateName>(
@@ -207,7 +207,6 @@ function evalTerm<K extends StateName>(
   } else if (term instanceof Choice) {
     result = evalChoice(ctx, term, pos, lexical);
   } else {
-    // State reference
     [ws, pos] = skipWs(ctx, lexical, pos);
     result = parseState(ctx, term, pos);
   }
@@ -249,10 +248,9 @@ function matchRegex(input: string, re: RegExp, pos: number): Result {
 }
 
 export type Operators<K extends StateName> = readonly [
-  ops: ReadonlySet<StandaloneOperator>,
+  opMask: number,
   attrs: readonly string[],
-  body: readonly (Exclude<GraphToken<K>, StandaloneOperator> | Generic)[],
-  opMask: number
+  body: readonly (Exclude<GraphToken<K>, StandaloneOperator> | Generic)[]
 ];
 
 function throwOnGeneric<K extends StateName>(x: Exclude<GraphToken<K>, StandaloneOperator> | Generic):
@@ -272,19 +270,19 @@ function withOperators<K extends StateName>(
   lexical: boolean,
   operators = seq.operators,
 ): Result {
-  const [ops, attrs, body, opMask] = operators;
+  const [opMask, attrs, body] = operators;
 
-  const hasPosLA = ops.has('&');
-  const hasNegLA = ops.has('!');
-  const hasStar = ops.has('*');
-  const hasPlus = ops.has('+');
-  const hasOpt = ops.has('?');
-  const hasAt = ops.has('@');
-  const hasRewind = ops.has('$');
-  const hasLex = ops.has('#');
-  const hasSyn = ops.has('%');
+  const hasPosLA = opMask & OP_MAP['&'];
+  const hasNegLA = opMask & OP_MAP['!'];
+  const hasStar = opMask & OP_MAP['*'];
+  const hasPlus = opMask & OP_MAP['+'];
+  const hasOpt = opMask & OP_MAP['?'];
+  const hasAt = opMask & OP_MAP['@'];
+  const hasRewind = opMask & OP_MAP['$'];
+  const hasLex = opMask & OP_MAP['#'];
+  const hasSyn = opMask & OP_MAP['%'];
   if (hasLex) lexical = true;
-  if (hasSyn) lexical = false;
+  else if (hasSyn) lexical = false;
 
   let result: Result | undefined;
   if (hasAt) {
@@ -298,9 +296,7 @@ function withOperators<K extends StateName>(
       kind: '@',
       ws
     };
-  }
-
-  if (hasOpt) {
+  } else if (hasOpt) {
     let [ws, runPos] = skipWs(ctx, lexical, pos);
     const r = run(runPos, body, lexical);
     if (!r.ok && (r.pos === runPos || hasRewind))
@@ -319,9 +315,7 @@ function withOperators<K extends StateName>(
         kind: '?',
         ws
       };
-  }
-
-  if (hasStar || hasPlus) {
+  } else if (hasStar || hasPlus) {
     const results: Result[] = [];
     let curPos = pos;
 
@@ -377,9 +371,7 @@ function withOperators<K extends StateName>(
       value: result,
       positive: true
     };
-  }
-
-  if (hasNegLA) {
+  } else if (hasNegLA) {
     result = {
       type: 'lookahead',
       ok: !result.ok,
