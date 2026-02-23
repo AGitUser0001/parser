@@ -1,5 +1,5 @@
 import { computeSCCInfo, type SccId } from './scc.js';
-import { customInspectSymbol, freeze, MapView, SetView } from './shared.js';
+import { customInspectSymbol, freeze, MapView } from './shared.js';
 import { type Operators } from './parser.js';
 
 export type IterationOperator = '*' | '+' | '?' | '@';
