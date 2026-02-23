@@ -2,13 +2,15 @@ import { input_to_graph, graph_to_input, parse, transformCSTRoot, toTypedAST, Se
 
 // -----------------------------------------------------------------------
 
+const RUN_NATIVE = false;
 const LOG_GRAPH = false;
-const RUN_BENCHMARK = true;
+const LOG_NUMBERS = false;
+const RUN_BENCHMARK = false;
 const LOG_ASTIR = false;
 const LOG_DATA = false;
 
-const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/64KB.json')).text();
-// const input = await readFile('./json_sample1k.json', 'utf-8');
+// const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/64KB.json')).text();
+const input = await readFile('./json_sample1k.json', 'utf-8');
 console.log('Input: ', input.length);
 
 // -----------------------------------------------------------------------
@@ -124,13 +126,15 @@ const jsonSemantics = new Semantics('json', jsonGraph, {
 });
 //#endregion
 
-console.time('Native');
-try {
-  JSON.parse(input);
-} catch (e) {
-  console.log(e);
+if (RUN_NATIVE) {
+  console.time('Native');
+  try {
+    JSON.parse(input);
+  } catch (e) {
+    console.log(e);
+  }
+  console.timeEnd('Native');
 }
-console.timeEnd('Native');
 
 import Benchmark from 'benchmark';
 
@@ -158,14 +162,17 @@ if (RUN_BENCHMARK)
 console.time('parse');
 const result = parse(jsonGraph, input, 'Entry');
 console.timeEnd('parse');
-console.log('Result: ', JSON.stringify(result).length);
+if (LOG_NUMBERS)
+  console.log('Result: ', JSON.stringify(result).length);
 
 if (result.ok) {
   console.time('transformCSTRoot');
   const astIR = transformCSTRoot(result);
   console.timeEnd('transformCSTRoot');
 
-  console.log('ASTIR: ', JSON.stringify(astIR).length);
+  if (LOG_NUMBERS)
+    console.log('ASTIR: ', JSON.stringify(astIR).length);
+
   if (LOG_ASTIR) {
     console.log(JSON.stringify(astIR).slice(0, 50000));
     console.log(JSON.stringify(astIR).slice(-50000));
