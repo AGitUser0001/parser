@@ -3,12 +3,12 @@ import { input_to_graph, graph_to_input, parse, transformCSTRoot, toTypedAST, Se
 // -----------------------------------------------------------------------
 
 const LOG_GRAPH = false;
-const RUN_BENCHMARK = true;
+const RUN_BENCHMARK = false;
 const LOG_ASTIR = false;
 const LOG_DATA = false;
 
-// const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
-const input = await readFile('./json_sample1k.json', 'utf-8');
+const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
+// const input = await readFile('./json_sample1k.json', 'utf-8');
 console.log('Input: ', input.length);
 
 // -----------------------------------------------------------------------

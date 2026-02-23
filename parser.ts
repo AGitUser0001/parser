@@ -142,7 +142,7 @@ function evalChoice<K extends StateName>(
   const ops = choice.operators[0];
   const hasOrderedChoice = ops.has('/');
   if (hasOrderedChoice) {
-    return withOperators(ctx, choice, pos, function (pos: number, body, lex) {
+    return withOperators(ctx, choice, pos, function (pos, body, lex) {
       let error: Result = { type: 'none', ok: false, pos, value: null };
       let errorId: number | null = null;
       for (let i = 0; i < body.length; i++) {
@@ -159,7 +159,7 @@ function evalChoice<K extends StateName>(
       return { type: 'choice', ok: error.ok, pos: error.pos, value: error, alt: errorId };
     }, lexical);
   }
-  return withOperators(ctx, choice, pos, function (pos: number, body, lex) {
+  return withOperators(ctx, choice, pos, function (pos, body, lex) {
     let best: Result = { type: 'none', ok: false, pos, value: null };
     let bestId: number | null = null;
     for (let i = 0; i < body.length; i++) {

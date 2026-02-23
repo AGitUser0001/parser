@@ -1,11 +1,10 @@
-import { StateNode, IterationNode, TerminalNode, type AnyASTNode, RootNode, Source } from './ast.js';
+import { StateNode, IterationNode, TerminalNode, type AnyASTNode, RootNode } from './ast.js';
 import { type StateName, type StateKey, Graph } from './graph.js';
 import { MapView, type DeepReplace, type UnionToIntersection, type Display } from './shared.js';
 
 type AllASTNodes_ = UnionToIntersection<AnyASTNode>;
 export type AllASTNodes = Display<
   DeepReplace<AllASTNodes_,
-    [Source, Source]
     | [AnyASTNode | null, AllASTNodes]
     | [AnyASTNode[], AllASTNodes[]] | [AnyASTNode[][], AllASTNodes[][]]
   >
