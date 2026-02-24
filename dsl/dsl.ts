@@ -8,8 +8,7 @@ export const grammar = {
 
   State: {
     reg: ['identifier', /=/, 'Choice_outer'],
-    obj: ['identifier', /=/, 'StateObject'],
-    _: [['/']]
+    obj: ['identifier', /=/, 'StateObject']
   },
 
   Choice: {
@@ -40,8 +39,8 @@ export const grammar = {
   prefixes: '*prefix',
   prefix: /[#%!&$]/,
 
-  identifier: /[A-Za-z_][A-Za-z0-9_]*/,
-  generic: /@[A-Za-z_][A-Za-z0-9_]*/,
+  identifier: /[$_\p{ID_Start}](?:[$_\u200C\u200D\p{ID_Continue}])*/u,
+  generic: [/@/, 'identifier'],
 
   terminal: [/\//, /(?:\\.|[^/\\[\r\n]|\[(?:\\.|[^\]\\\r\n])*\])+/, /\//, /[a-z]*/],
 
@@ -61,7 +60,8 @@ type Data<K extends StateName> =
   | { t: 'input'; subType: 'seq'; v: MutableArrayTokenSequence<K>; }
   | { t: 'input'; subType: 'choice'; v: MutableArrayTokenExpr<K>; }
   | { t: 'arg'; v: MutableArrayTokenSequence<K>; name: string; }
-  | { t: 'operators'; v: StandaloneOperator[]; };
+  | { t: 'operators'; v: StandaloneOperator[]; }
+  | { t: 'string'; v: string; };
 
 function assertType<K extends StateName, T extends Data<K>['t']>(
   data: Data<K>, typeName: T
@@ -75,6 +75,11 @@ function assertSubType<K extends StateName, T extends (Data<K> & { t: 'input'; }
 ): asserts data is Data<K> & { t: 'input'; subType: T; } {
   if (data.subType !== subTypeName)
     throw new TypeError(`Expected subType ${subTypeName}, got ${data.subType}`, { cause: { data, subTypeName } });
+}
+
+function str<K extends StateName>(data: Data<K>): string {
+  assertType(data, 'string');
+  return data.v;
 }
 
 function collapse(v: MutableArrayTokenSequence<StateName>): MutableArrayTokenSequence<StateName> {
@@ -163,7 +168,7 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
   },
 
   State_reg(identifierNode, _eqNode, choiceNode) {
-    const name = identifierNode.children[0].value as StateName;
+    const name = str(this(identifierNode)) as StateName;
 
     const data = this(choiceNode);
     assertType(data, 'input');
@@ -179,7 +184,7 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
   },
 
   State_obj(identifierNode, _eqNode, statesNode) {
-    const name = identifierNode.children[0].value as StateName;
+    const name = str(this(identifierNode)) as StateName;
 
     const data = this(statesNode);
     assertType(data, 'state_obj');
@@ -265,7 +270,7 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
   },
 
   Reference(prefixes, identifierNode, postfixes) {
-    const name = identifierNode.children[0].value as StateName;
+    const name = str(this(identifierNode)) as StateName;
 
     const prefixA = this(prefixes);
     assertType(prefixA, 'operators');
@@ -331,7 +336,7 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
   },
 
   Arg(identifierNode, _eqNode, choiceNode) {
-    const name = identifierNode.children[0].value;
+    const name = str(this(identifierNode));
 
     const data = this(choiceNode);
     assertType(data, 'input');
@@ -347,7 +352,7 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
   },
 
   Call(prefixes, idNode, lb, argNode, argIter, rb, postfixes) {
-    const name = idNode.children[0].value as StateName;
+    const name = str(this(idNode)) as StateName;
 
     const prefixA = this(prefixes);
     assertType(prefixA, 'operators');
@@ -378,6 +383,22 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
       t: 'input',
       subType: 'choice',
       v: [...prefixA.v, ...postfixA.v, call]
+    };
+  },
+
+  identifier(t) {
+    return {
+      t: 'string',
+      v: t.value
+    };
+  },
+
+  generic(t, id) {
+    const label = str(this(id));
+
+    return {
+      t: 'string',
+      v: t.value + label
     };
   }
 });

@@ -3,12 +3,12 @@
 
 Grammar = (State ';'?)*
 
-StateObject = prefixes '{' (State_reg ';'?)* '}' postfixes
+StateObject = prefixes '{' (State_reg ';'?)* '}' #postfixes
 
 State = {
   reg = identifier '=' Choice_outer
   obj = identifier '=' StateObject
-}/
+}
 
 Choice = {
   outer = '|'? Sequence_outer ('|' Sequence_outer)*
@@ -23,15 +23,15 @@ Sequence = {
 // Must be Group first, Call before Reference
 Term = (Group | Terminal | Call | Reference)/
 
-Group = prefixes '(' Choice_inner ')' postfixes
+Group = prefixes '(' Choice_inner ')' #postfixes
 
-Reference = prefixes (identifier | generic) postfixes
+Reference = prefixes (identifier | generic) #postfixes
 
-Call = prefixes identifier '<' Arg (',' Arg)* '>' postfixes
+Call = prefixes identifier '<' Arg (',' Arg)* '>' #postfixes
 
 Arg = identifier '=' Choice_outer
 
-Terminal = prefixes (terminal | string) postfixes
+Terminal = prefixes (terminal | string) #postfixes
 
 postfixes = postfix*
 
@@ -40,9 +40,9 @@ postfix = />[A-Za-z0-9_]+(,[A-Za-z0-9_]+)*|[*?+@/]/
 prefixes = prefix*
 prefix = /[#%!&$]/
 
-identifier = /[A-Za-z_][A-Za-z0-9_]*/
+identifier = /[$_\p{ID_Start}](?:[$_\u200C\u200D\p{ID_Continue}])*/u
 
-generic = /@[A-Za-z_][A-Za-z0-9_]*/
+generic = '@' identifier
 
 terminal = '/' /(?:\\.|[^/\\[\r\n]|\[(?:\\.|[^\]\\\r\n])*\])+/ '/' /[a-z]*/
 
