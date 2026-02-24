@@ -2,15 +2,16 @@ import { input_to_graph, graph_to_input, parse, transformCSTRoot, toTypedAST, Se
 
 // -----------------------------------------------------------------------
 
-const RUN_NATIVE = false;
+const RUN_NATIVE = true;
 const LOG_GRAPH = false;
-const LOG_NUMBERS = false;
+const LOG_NUMBERS = true;
+const RUN_N = 0;
 const RUN_BENCHMARK = false;
 const LOG_ASTIR = false;
 const LOG_DATA = false;
 
-// const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/64KB.json')).text();
-const input = await readFile('./json_sample1k.json', 'utf-8');
+const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
+// const input = await readFile('./json_sample1k.json', 'utf-8');
 console.log('Input: ', input.length);
 
 // -----------------------------------------------------------------------
@@ -155,6 +156,13 @@ suite.add("combined", () => {
 suite.on('cycle', function (event: Benchmark.Event) {
   console.log(String(event.target));
 });
+
+if (RUN_N > 0) {
+  console.time(String(RUN_N));
+  for (let i = 0; i < RUN_N; i++)
+    parse(jsonGraph, input, 'Entry');
+  console.timeEnd(String(RUN_N));
+}
 
 if (RUN_BENCHMARK)
   suite.run();
