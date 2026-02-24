@@ -4,19 +4,11 @@ import { input_to_graph, toTypedAST, transformCSTRoot, parse, Semantics } from "
 export const grammar = {
   Grammar: ['*', 'State', ['?', /;/]],
 
-  StateObject: ['group_prefixes', /\{/, [['*', 'State_reg', ['?', /;/]]], /\}/, '#postfixes'],
+  StateObject: ['prefixes', /\{/, [['*', 'State_reg', ['?', /;/]]], /\}/, '#postfixes'],
 
   State: {
-    /**
-     *  State_obj must be first for some cases on a single line:
-     *  ```
-     *  State = /{}; A = /1/
-     *  ````
-     * If State_obj is second; this will parse as
-     * "State" "=" "/" "{}; A = /1" "/"
-     */
-    obj: ['identifier', /=/, 'StateObject'],
     reg: ['identifier', /=/, 'Choice_outer'],
+    obj: ['identifier', /=/, 'StateObject'],
     _: [['/']]
   },
 
@@ -33,7 +25,7 @@ export const grammar = {
   // Must be Group first, Call before Reference
   Term: [['/', 'Group', 'Terminal', 'Call', 'Reference']],
 
-  Group: ['group_prefixes', /\(/, 'Choice_inner', /\)/, '#postfixes'],
+  Group: ['prefixes', /\(/, 'Choice_inner', /\)/, '#postfixes'],
 
   Reference: ['prefixes', ['identifier', 'generic'], '#postfixes'],
 
@@ -43,13 +35,10 @@ export const grammar = {
   Terminal: ['prefixes', ['terminal', 'string'], '#postfixes'],
 
   postfixes: '*postfix',
-  postfix: />[A-Za-z0-9_]+(,[A-Za-z0-9_]+)*|[*?+@]/,
+  postfix: />[A-Za-z0-9_]+(,[A-Za-z0-9_]+)*|[*?+@/]/,
 
   prefixes: '*prefix',
   prefix: /[#%!&$]/,
-
-  group_prefixes: ['*', ['prefix', 'ordered_choice_operator']],
-  ordered_choice_operator: /[/]/,
 
   identifier: /[A-Za-z_][A-Za-z0-9_]*/,
   generic: /@[A-Za-z_][A-Za-z0-9_]*/,
@@ -339,9 +328,6 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
   },
   prefixes(opIter) {
     return this.use('postfixes', opIter);
-  },
-  group_prefixes(opIter) {
-    return this.use('prefixes', opIter);
   },
 
   Arg(identifierNode, _eqNode, choiceNode) {

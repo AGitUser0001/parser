@@ -1,13 +1,13 @@
 Entry = Value>json;
 
-Value = /(
+Value = (
   | Object
   | Array
   | string
   | number
   | boolean
   | null
-);
+)/;
 
 Object = (
   '{'

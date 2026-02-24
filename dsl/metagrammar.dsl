@@ -3,20 +3,12 @@
 
 Grammar = (State ';'?)*
 
-StateObject = group_prefixes '{' (State_reg ';'?)* '}' #postfixes
+StateObject = prefixes '{' (State_reg ';'?)* '}' postfixes
 
-State = /{
-  /**
-    *  State_obj must be first for some cases on a single line:
-    *  ```
-    *  State = /{}; A = /1/
-    *  ````
-    * If State_obj is second; this will parse as
-    * "State" "=" "/" "{}; A = /1" "/"
-    */
-  obj = identifier '=' StateObject
+State = {
   reg = identifier '=' Choice_outer
-}
+  obj = identifier '=' StateObject
+}/
 
 Choice = {
   outer = '|'? Sequence_outer ('|' Sequence_outer)*
@@ -29,27 +21,24 @@ Sequence = {
 }
 
 // Must be Group first, Call before Reference
-Term = /(Group | Terminal | Call | Reference)
+Term = (Group | Terminal | Call | Reference)/
 
-Group = group_prefixes '(' Choice_inner ')' #postfixes
+Group = prefixes '(' Choice_inner ')' postfixes
 
-Reference = prefixes (identifier | generic) #postfixes
+Reference = prefixes (identifier | generic) postfixes
 
-Call = prefixes identifier '<' Arg (',' Arg)* '>' #postfixes
+Call = prefixes identifier '<' Arg (',' Arg)* '>' postfixes
 
 Arg = identifier '=' Choice_outer
 
-Terminal = prefixes (terminal | string) #postfixes
+Terminal = prefixes (terminal | string) postfixes
 
 postfixes = postfix*
 
-postfix = />[A-Za-z0-9_]+(,[A-Za-z0-9_]+)*|[*?+@]/
+postfix = />[A-Za-z0-9_]+(,[A-Za-z0-9_]+)*|[*?+@/]/
 
 prefixes = prefix*
 prefix = /[#%!&$]/
-
-group_prefixes = (prefix | ordered_choice_operator)*
-ordered_choice_operator = '/'
 
 identifier = /[A-Za-z_][A-Za-z0-9_]*/
 
