@@ -114,7 +114,7 @@ function solveSCC<K extends StateName>(
   }
 
   return (rc: RuntimeCtx<K>, pos: number) => {
-    let entries: MemoEntry[] = [];
+    let entries: MemoEntry[] = Array(group.length);
     for (let i = 0; i < group.length; i++) {
       const st = group[i];
       let memo = rc.getMemo(st, pos);
@@ -122,7 +122,7 @@ function solveSCC<K extends StateName>(
         memo = { result: { type: 'none', ok: false, pos, value: null } };
         rc.setMemo(st, pos, memo);
       }
-      entries.push(memo);
+      entries[i] = memo;
     }
     let changed = true;
     while (changed) {
@@ -152,25 +152,36 @@ function evalStateBody<K extends StateName>(
   if (!seq)
     throw new Error(`Invalid state: ${state}`, { cause: { ctx, state } });
 
-  return evalSequence(ctx, seq, lexical);
+  return buildSequence(ctx, seq, lexical);
 }
 
-function evalChoice<K extends StateName>(
+function buildChoice<K extends StateName>(
   ctx: ParserCtx<K>,
   choice: Choice<K>,
   lexical: boolean
 ): RV<K> {
-  const opMask = choice.operators[0];
+  const [opMask, _, body] = choice.operators;
+  if (body.length === 1) {
+    return withOperators(ctx, choice, (body, lex) => {
+      const term = body[0];
+      throwOnGeneric(term);
+      const x = buildTerm(ctx, term, lex);
+      return (rc, pos) => {
+        const r = x(rc, pos);
+        return { type: 'choice', ok: r.ok, pos: r.pos, value: r, alt: 0 };
+      }
+    }, lexical);
+  }
   const hasOrderedChoice = opMask & OP_MAP['/'];
   if (hasOrderedChoice) {
-    return withOperators(ctx, choice, function (body, lex) {
+    return withOperators(ctx, choice, (body, lex) => {
       const ev: RV<K>[] = [];
       for (const term of body) {
         throwOnGeneric(term);
-        const x = evalTerm(ctx, term, lex);
+        const x = buildTerm(ctx, term, lex);
         ev.push(x);
       }
-      return function (rc, pos) {
+      return (rc, pos) => {
         let error: Result = { type: 'none', ok: false, pos, value: null };
         let errorId: number | null = null;
         for (let i = 0; i < ev.length; i++) {
@@ -187,14 +198,14 @@ function evalChoice<K extends StateName>(
       }
     }, lexical);
   }
-  return withOperators(ctx, choice, function (body, lex) {
+  return withOperators(ctx, choice, (body, lex) => {
     const ev: RV<K>[] = [];
     for (const term of body) {
       throwOnGeneric(term);
-      const x = evalTerm(ctx, term, lex);
+      const x = buildTerm(ctx, term, lex);
       ev.push(x);
     }
-    return function (rc, pos) {
+    return (rc, pos) => {
       let best: Result = { type: 'none', ok: false, pos, value: null };
       let bestId: number | null = null;
       for (let i = 0; i < body.length; i++) {
@@ -213,9 +224,7 @@ function evalChoice<K extends StateName>(
   }, lexical);
 }
 
-type skipWs_V<K extends StateName> = (rc: RuntimeCtx<K>, pos: number) => [MatcherValue | null, number];
-const skipWs_noop: skipWs_V<StateName> = (rc, pos) => [null, pos];
-const skipWs_op: skipWs_V<StateName> = (rc, pos) => {
+function skipWs(rc: RuntimeCtx<StateName>, pos: number): [MatcherValue | null, number] {
   rc.ws.lastIndex = pos;
   const match = rc.ws.exec(rc.input);
   if (match) {
@@ -226,33 +235,38 @@ const skipWs_op: skipWs_V<StateName> = (rc, pos) => {
   return [null, pos];
 };
 
-function skipWs<K extends StateName>(ctx: ParserCtx<K>, lexical: boolean): skipWs_V<K> {
-  return lexical ? skipWs_noop : skipWs_op;
-}
-
-function evalTerm<K extends StateName>(
+function buildTerm<K extends StateName>(
   ctx: ParserCtx<K>,
   term: RegExp | StateKey<K> | Choice<K> | Sequence<K>,
   lexical: boolean
 ): RV<K> {
-  const s = skipWs(ctx, lexical);
   if (term instanceof RegExp) {
-    const x = matchRegex(ctx, term);
+    const x = buildRegex(ctx, term);
+    if (lexical)
+      return (rc, pos) => {
+        const result = x(rc, pos);
+        return result;
+      }
     return (rc, pos) => {
       let ws;
-      [ws, pos] = s(rc, pos);
+      [ws, pos] = skipWs(rc, pos);
       const result = x(rc, pos);
       if (ws) result.ws = result.ws ? ws + result.ws : ws;
       return result;
     }
   } else if (term instanceof Sequence) {
-    return evalSequence(ctx, term, lexical);
+    return buildSequence(ctx, term, lexical);
   } else if (term instanceof Choice) {
-    return evalChoice(ctx, term, lexical);
+    return buildChoice(ctx, term, lexical);
   } else {
+    if (lexical)
+      return (rc, pos) => {
+        const result = rc.call(term, pos);
+        return result;
+      }
     return (rc, pos) => {
       let ws;
-      [ws, pos] = s(rc, pos);
+      [ws, pos] = skipWs(rc, pos);
       const result = rc.call(term, pos);
       if (ws) result.ws = result.ws ? ws + result.ws : ws;
       return result;
@@ -260,19 +274,31 @@ function evalTerm<K extends StateName>(
   }
 }
 
-function evalSequence<K extends StateName>(
+function buildSequence<K extends StateName>(
   ctx: ParserCtx<K>,
   seq: Sequence<K>,
   lexical: boolean
 ): RV<K> {
-  return withOperators(ctx, seq, function (body, lex) {
+  const [_opMask, _, body] = seq.operators;
+  if (body.length === 1) {
+    return withOperators(ctx, seq, (body, lex) => {
+      const term = body[0];
+      throwOnGeneric(term);
+      const x = buildTerm(ctx, term, lex);
+      return (rc, pos) => {
+        const r = x(rc, pos);
+        return { type: 'sequence', ok: r.ok, pos: r.pos, value: [r] };
+      }
+    }, lexical);
+  }
+  return withOperators(ctx, seq, (body, lex) => {
     const ev: RV<K>[] = [];
     for (const term of body) {
       throwOnGeneric(term);
-      const x = evalTerm(ctx, term, lex);
+      const x = buildTerm(ctx, term, lex);
       ev.push(x);
     }
-    return function (rc, pos) {
+    return (rc, pos) => {
       let curPos = pos;
       let results: Result[] = [];
       for (const x of ev) {
@@ -286,7 +312,7 @@ function evalSequence<K extends StateName>(
   }, lexical);
 }
 
-function matchRegex<K extends StateName>(ctx: ParserCtx<K>, re: RegExp): RV<K> {
+function buildRegex<K extends StateName>(ctx: ParserCtx<K>, re: RegExp): RV<K> {
   if (!re.sticky || re.global)
     throw new Error(`matchRegex: Expected sticky and non-global regex, got: ${re.flags}`, { cause: re });
 
@@ -339,9 +365,17 @@ function withOperators<K extends StateName>(
 
   if (hasAt) {
     const x = r;
-    const s = skipWs(ctx, lexical);
-    r = (rc, pos) => {
-      let [ws, runPos] = s(rc, pos);
+    r = lexical ? (rc, pos) => {
+      const r = x(rc, pos);
+      return {
+        type: 'iteration',
+        ok: r.ok,
+        pos: hasRewind ? (r.ok ? r.pos : pos) : r.pos,
+        value: [r],
+        kind: '@'
+      };
+    } : (rc, pos) => {
+      let [ws, runPos] = skipWs(rc, pos);
       const r = x(rc, runPos);
       return {
         type: 'iteration',
@@ -351,12 +385,28 @@ function withOperators<K extends StateName>(
         kind: '@',
         ws
       };
-    }
+    };
   } else if (hasOpt) {
     const x = r;
-    const s = skipWs(ctx, lexical);
-    r = (rc, pos) => {
-      let [ws, runPos] = s(rc, pos);
+    r = lexical ? (rc, pos) => {
+      const r = x(rc, pos);
+      if (!r.ok && (hasRewind || r.pos === pos))
+        return {
+          type: 'iteration',
+          ok: true,
+          pos, value: [],
+          kind: '?'
+        };
+      else
+        return {
+          type: 'iteration',
+          ok: r.ok,
+          pos: r.pos,
+          value: [r],
+          kind: '?'
+        };
+    } : (rc, pos) => {
+      let [ws, runPos] = skipWs(rc, pos);
       const r = x(rc, runPos);
       if (!r.ok && (hasRewind || r.pos === runPos))
         return {
@@ -374,16 +424,36 @@ function withOperators<K extends StateName>(
           kind: '?',
           ws
         };
-    }
-  } else if (hasStar || hasPlus) {
+    };
+  } else if (hasStar) {
     const x = r;
-    const s = skipWs(ctx, lexical);
-    r = (rc, pos) => {
+    r = lexical ? (rc, pos) => {
       const results: Result[] = [];
       let curPos = pos;
 
       while (true) {
-        let [ws, runPos] = s(rc, curPos);
+        const r = x(rc, curPos);
+        if (r.pos === curPos) break;
+        if (hasRewind && !r.ok) break;
+
+        results.push(r);
+        curPos = r.pos;
+        if (!r.ok) break;
+      }
+
+      return {
+        type: 'iteration',
+        ok: results.length ? results[results.length - 1].ok : true,
+        pos: curPos,
+        value: results,
+        kind: hasPlus ? '+' : '*'
+      };
+    } : (rc, pos) => {
+      const results: Result[] = [];
+      let curPos = pos;
+
+      while (true) {
+        let [ws, runPos] = skipWs(rc, curPos);
         const r = x(rc, runPos);
         if (ws) r.ws = r.ws ? ws + r.ws : ws;
 
@@ -394,13 +464,29 @@ function withOperators<K extends StateName>(
         if (!r.ok) break;
       }
 
-      if (hasPlus && results.length === 0) {
-        let ws;
-        [ws, curPos] = s(rc, curPos);
+      return {
+        type: 'iteration',
+        ok: results.length ? results[results.length - 1].ok : true,
+        pos: curPos,
+        value: results,
+        kind: hasPlus ? '+' : '*'
+      };
+    };
+  } else if (hasPlus) {
+    const x = r;
+    r = lexical ? (rc, pos) => {
+      const results: Result[] = [];
+      let curPos = pos;
+
+      while (true) {
         const r = x(rc, curPos);
-        if (ws) r.ws = r.ws ? ws + r.ws : ws;
+        if (results.length) {
+          if (r.pos === curPos) break;
+          if (hasRewind && !r.ok) break;
+        }
         results.push(r);
         curPos = r.pos;
+        if (!r.ok) break;
       }
 
       return {
@@ -410,7 +496,32 @@ function withOperators<K extends StateName>(
         value: results,
         kind: hasPlus ? '+' : '*'
       };
-    }
+    } : (rc, pos) => {
+      const results: Result[] = [];
+      let curPos = pos;
+
+      while (true) {
+        let [ws, runPos] = skipWs(rc, curPos);
+        const r = x(rc, runPos);
+        if (ws) r.ws = r.ws ? ws + r.ws : ws;
+
+        if (results.length) {
+          if (r.pos === runPos) break;
+          if (hasRewind && !r.ok) break;
+        }
+        results.push(r);
+        curPos = r.pos;
+        if (!r.ok) break;
+      }
+
+      return {
+        type: 'iteration',
+        ok: results.length ? results[results.length - 1].ok : true,
+        pos: curPos,
+        value: results,
+        kind: hasPlus ? '+' : '*'
+      };
+    };
   }
 
   // --- rewind ---
@@ -496,8 +607,6 @@ export function build<K extends StateName>(
     states.set(stateLabel, buildState(ctx, stateLabel));
   }
 
-  const sL = skipWs(ctx, true);
-  const sS = skipWs(ctx, false);
   return function parse(input, start, ws) {
     ws ??= WS_REGEX;
     if (!ws.sticky || ws.global) {
@@ -522,7 +631,7 @@ export function build<K extends StateName>(
       setMemo(state, pos, entry) {
         memos.get(state)![pos] = entry;
       },
-      call(state, pos) { 
+      call(state, pos) {
         return states.get(state)!(rc, pos);
       },
 
@@ -530,8 +639,11 @@ export function build<K extends StateName>(
     };
 
     const result = x(rc, 0);
-    const s = lexicalStates.has(start) ? sL : sS;
-    const [trailing_ws, endPos] = s(rc, result.pos);
+    const lexical = lexicalStates.has(start);
+    let trailing_ws = null, endPos = result.pos;
+    if (!lexical) {
+      [trailing_ws, endPos] = skipWs(rc, result.pos);
+    }
 
     if (result.ok && endPos === input.length) {
       return {
