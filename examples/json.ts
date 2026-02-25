@@ -5,7 +5,7 @@ import { input_to_graph, graph_to_input, parse, transformCSTRoot, toTypedAST, Se
 const RUN_NATIVE = true;
 const LOG_GRAPH = false;
 const LOG_NUMBERS = true;
-const RUN_N = 0;
+const RUN_N = 10;
 const RUN_BENCHMARK = false;
 const LOG_ASTIR = false;
 const LOG_DATA = false;

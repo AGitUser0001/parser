@@ -34,7 +34,7 @@ type ParserCtx<K extends StateName> = Readonly<{
   graph: Graph<K>;
   input: string;
 
-  getMemo(state: StateKey<K>, pos: number): MemoEntry | undefined;
+  getMemo(state: StateKey<K>, pos: number): MemoEntry | null;
   setMemo(state: StateKey<K>, pos: number, entry: MemoEntry): void;
 
   sccOf: MapView<StateKey<K>, SccId>;
@@ -407,10 +407,10 @@ export function parse<K extends StateName>(
     throw new Error("Whitespace regex must be sticky and non-global");
   }
 
-  const memos = new Map<StateKey<K>, Map<number, MemoEntry>>();
+  const memos = new Map<StateKey<K>, (MemoEntry | null)[]>();
   const lexicalStates = new Set<StateKey<K>>();
   for (const stateLabel of graph.keys()) {
-    memos.set(stateLabel, new Map);
+    memos.set(stateLabel, Array(input.length).fill(null));
     if (LEXICAL_REGEX.test(stateLabel))
       lexicalStates.add(stateLabel);
   }
@@ -420,10 +420,10 @@ export function parse<K extends StateName>(
     input,
 
     getMemo(state, pos) {
-      return memos.get(state)?.get(pos);
+      return memos.get(state)![pos];
     },
     setMemo(state, pos, entry) {
-      memos.get(state)!.set(pos, entry);
+      memos.get(state)![pos] = entry;
     },
 
     sccOf: graph.sccOf,
@@ -451,3 +451,85 @@ export function parse<K extends StateName>(
     trailing_ws
   };
 }
+
+/*
+Would require knowing how far the regex engine looked ahead or behind...
+
+export function matcher<K extends StateName>(
+  graph: Graph<K>,
+  ws?: RegExp
+) {
+  ws ??= WS_REGEX;
+  if (!ws.sticky || ws.global) {
+    throw new Error("Whitespace regex must be sticky and non-global");
+  }
+
+  const memos = new Map<StateKey<K>, (MemoEntry | null)[]>();
+  const lexicalStates = new Set<StateKey<K>>();
+  for (const stateLabel of graph.keys()) {
+    memos.set(stateLabel, []);
+    if (LEXICAL_REGEX.test(stateLabel))
+      lexicalStates.add(stateLabel);
+  }
+
+  const ctx: ParserCtx<K> = {
+    graph,
+    input: '',
+
+    getMemo(state, pos) {
+      return memos.get(state)![pos];
+    },
+    setMemo(state, pos, entry) {
+      memos.get(state)![pos] = entry;
+    },
+
+    sccOf: graph.sccOf,
+    sccMembers: graph.sccMembers,
+    ws, lexicalStates
+  };
+
+  return function parse(
+    input: string,
+    leftPos: number, rightPos: number,
+    start: StateKey<K>
+  ): Result & { type: 'root'; } {
+    for (const stateLabel of graph.keys()) {
+      let arr = memos.get(stateLabel)!;
+      arr = arr.slice(0, leftPos).concat(
+        new Array(input.length).fill(null),
+        arr.slice(rightPos));
+      memos.set(stateLabel, arr);
+      for (let pos = 0; pos < leftPos; pos++) {
+        let col = arr[pos];
+        if (col != null && col.result.pos > leftPos) {
+          arr[pos] = null;
+        }
+      }
+    }
+
+    // @ts-expect-error
+    ctx.input = ctx.input.slice(0, leftPos) + input + ctx.input.slice(rightPos);
+
+    if (graph.get(start)?.generic)
+      throw new Error(`Cannot start at generic state: ${start}`, { cause: { graph, start } });
+
+    const result = parseState(ctx, start, 0);
+    const [trailing_ws, endPos] = skipWs(ctx, lexicalStates.has(start), result.pos);
+
+    if (result.ok && endPos === ctx.input.length) {
+      return {
+        type: 'root',
+        ok: true, pos: endPos, value: result,
+        trailing_ws
+      };
+    }
+
+    return {
+      type: 'root',
+      ok: false, pos: endPos, value: result,
+      trailing_ws
+    };
+  }
+}
+
+*/
