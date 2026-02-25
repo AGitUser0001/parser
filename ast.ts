@@ -44,7 +44,7 @@ export function transformCSTRoot(result: Result): ASTResult & { type: 'root'; } 
   };
 }
 
-type ASTSourceCon = { start?: number; end?: number; text: string[]; };
+export type ASTSourceCon = { start?: number; end?: number; text: string[]; };
 export function transformCST(result: Result, out: ASTResult[], sourceCon: ASTSourceCon): number {
   if (!result.ok) return 0;
   let len = 0, wslen = 0;

@@ -1,4 +1,4 @@
-import { input_to_graph, graph_to_input, build, transformCSTRoot, toTypedAST, Semantics, type AllASTNodes } from '../index.js';
+import { input_to_graph, graph_to_input, build, transformCSTRoot, toTypedAST, Semantics, type AllASTNodes } from 'parser';
 
 // -----------------------------------------------------------------------
 
