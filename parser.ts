@@ -113,6 +113,27 @@ function solveSCC<K extends StateName>(
     ev.push(x);
   }
 
+  if (ev.length === 1) {
+    const x = ev[0];
+    const st = group[0];
+    return (rc: RuntimeCtx<K>, pos: number) => {
+      let entry = rc.getMemo(st, pos);
+      if (!entry) {
+        entry = { result: { type: 'none', ok: false, pos, value: null } };
+        rc.setMemo(st, pos, entry);
+      }
+      while (true) {
+        const candidate = x(rc, pos);
+        if (improves(candidate, entry.result)) {
+          entry.result = candidate;
+        } else if (improves_error(candidate, entry.result)) {
+          entry.result = candidate;
+          return;
+        } else return;
+      }
+    }
+  }
+
   return (rc: RuntimeCtx<K>, pos: number) => {
     let entries: MemoEntry[] = Array(group.length);
     for (let i = 0; i < group.length; i++) {
