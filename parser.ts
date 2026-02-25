@@ -213,21 +213,21 @@ function evalChoice<K extends StateName>(
   }, lexical);
 }
 
-function skipWs<K extends StateName>(ctx: ParserCtx<K>, lexical: boolean):
-  (rc: RuntimeCtx<K>, pos: number) => [MatcherValue | null, number] {
-  if (lexical)
-    return (rc, pos) => [null, pos];
-
-  return (rc, pos: number) => {
-    rc.ws.lastIndex = pos;
-    const match = rc.ws.exec(rc.input);
-    if (match) {
-      let ws = match[0];
-      pos += ws.length;
-      return [ws, pos];
-    }
-    return [null, pos];
+type skipWs_V<K extends StateName> = (rc: RuntimeCtx<K>, pos: number) => [MatcherValue | null, number];
+const skipWs_noop: skipWs_V<StateName> = (rc, pos) => [null, pos];
+const skipWs_op: skipWs_V<StateName> = (rc, pos) => {
+  rc.ws.lastIndex = pos;
+  const match = rc.ws.exec(rc.input);
+  if (match) {
+    let ws = match[0];
+    pos += ws.length;
+    return [ws, pos];
   }
+  return [null, pos];
+};
+
+function skipWs<K extends StateName>(ctx: ParserCtx<K>, lexical: boolean): skipWs_V<K> {
+  return lexical ? skipWs_noop : skipWs_op;
 }
 
 function evalTerm<K extends StateName>(

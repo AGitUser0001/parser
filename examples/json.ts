@@ -6,7 +6,7 @@ const RUN_NATIVE = true;
 const LOG_GRAPH = false;
 const LOG_NUMBERS = true;
 const RUN_N = 10;
-const RUN_BENCHMARK = false;
+const RUN_BENCHMARK = true;
 const LOG_ASTIR = false;
 const LOG_DATA = false;
 
