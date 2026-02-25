@@ -35,7 +35,9 @@ type ParserCtx<K extends StateName> = Readonly<{
 
   sccOf: MapView<StateKey<K>, SccId>;
   sccMembers: MapView<SccId, StateKey<K>[]>;
+
   lexicalStates: Set<StateKey<K>>;
+  bind(state: StateKey<K>, cb: (val: RV<K>) => void): void;
 }>;
 
 
@@ -44,7 +46,6 @@ type RuntimeCtx<K extends StateName> = Readonly<{
 
   getMemo(state: StateKey<K>, pos: number): MemoEntry | null;
   setMemo(state: StateKey<K>, pos: number, entry: MemoEntry): void;
-  call(state: StateKey<K>, pos: number): Result;
 
   ws: RegExp;
 }>;
@@ -280,19 +281,25 @@ function buildTerm<K extends StateName>(
   } else if (term instanceof Choice) {
     return buildChoice(ctx, term, lexical);
   } else {
+    let x: RV<K> = noop;
+    ctx.bind(term, v => { x = v; });
+
     if (lexical)
       return (rc, pos) => {
-        const result = rc.call(term, pos);
+        const result = x(rc, pos);
         return result;
       }
     return (rc, pos) => {
       let ws;
       [ws, pos] = skipWs(rc, pos);
-      const result = rc.call(term, pos);
+      const result = x(rc, pos);
       if (ws) result.ws = result.ws ? ws + result.ws : ws;
       return result;
     }
   }
+}
+const noop: RV<StateName> = (rc, pos) => {
+  throw new Error('Internal Error: noop reached.', { cause: { rc, pos } });
 }
 
 function buildSequence<K extends StateName>(
@@ -610,22 +617,32 @@ export function build<K extends StateName>(
 ): (input: string, start: StateKey<K>, ws?: RegExp) => Result & { type: 'root'; } {
   const lexicalStates = new Set<StateKey<K>>();
   const allStates = new Set(graph.keys());
+  const toBind = new Map<StateKey<K>, ((val: RV<K>) => void)[]>();
   for (const stateLabel of allStates) {
     if (LEXICAL_REGEX.test(stateLabel))
       lexicalStates.add(stateLabel);
+    toBind.set(stateLabel, []);
   }
 
   const ctx: ParserCtx<K> = {
     graph,
     sccOf: graph.sccOf,
     sccMembers: graph.sccMembers,
-    lexicalStates
+    lexicalStates,
+    bind(state, cb) {
+      toBind.get(state)!.push(cb);
+    }
   };
 
   const states = new Map<StateKey<K>, StateRV<K>>();
   for (const [stateLabel, state] of graph.entries()) {
     if (state.generic) continue;
     states.set(stateLabel, buildState(ctx, stateLabel));
+  }
+
+  for (const [stateLabel, cbs] of toBind.entries()) {
+    for (const cb of cbs)
+      cb(states.get(stateLabel)!);
   }
 
   return function parse(input, start, ws) {
@@ -651,9 +668,6 @@ export function build<K extends StateName>(
       },
       setMemo(state, pos, entry) {
         memos.get(state)![pos] = entry;
-      },
-      call(state, pos) {
-        return states.get(state)!(rc, pos);
       },
 
       ws
