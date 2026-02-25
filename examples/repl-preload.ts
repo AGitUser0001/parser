@@ -39,6 +39,9 @@ const arithmeticStates = {
 
 export const g = graph.input_to_graph<keyof typeof arithmeticStates>(arithmeticStates);
 console.timeEnd('transform');
+console.time('gen');
+export const p = parser.build(g);
+console.timeEnd('gen');
 
 export function run() {
   console.time('run');
@@ -68,7 +71,7 @@ export function run() {
   ];
 
   for (const input of okCases) {
-    const r = parser.parse(g, input, 'Entry');
+    const r = p(input, 'Entry');
     if (!r.ok || r.pos !== input.length) {
       console.error('❌ FAIL (valid)', input, JSON.stringify(r));
       throw new Error('valid test failed');
@@ -97,7 +100,7 @@ export function run() {
   ];
 
   for (const input of badCases) {
-    const r = parser.parse(g, input, 'Entry');
+    const r = p(input, 'Entry');
     if (r.ok) {
       console.error('❌ FAIL (invalid)', input, r);
       throw new Error('invalid test failed');

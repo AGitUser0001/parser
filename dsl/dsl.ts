@@ -1,5 +1,5 @@
 import type { CallToken, MutableArrayTokenExpr, MutableArrayTokenSequence, MutableStateObject, StandaloneOperator, StateName, Token, MutableState, MutableStates } from "../graph.js";
-import { input_to_graph, toTypedAST, transformCSTRoot, parse, Semantics } from "../index.js";
+import { input_to_graph, toTypedAST, transformCSTRoot, build, Semantics } from "../index.js";
 
 export const grammar = {
   Grammar: ['*', 'State', ['?', /;/]],
@@ -403,9 +403,11 @@ export const semantics = createSemantics<Data<StateName>>('grammar', {
   }
 });
 
+export const parse = build(graph);
+
 export const WS_REGEX = /(?:\s+|\/\/.*$|\/\*[\s\S]*?\*\/)+/my;
 export function load(input: string) {
-  const parsed = parse(graph, input, 'Grammar', WS_REGEX);
+  const parsed = parse(input, 'Grammar', WS_REGEX);
   const astIR = transformCSTRoot(parsed);
   const AST = toTypedAST(astIR);
   const result = semantics.evaluate(AST);

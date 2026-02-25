@@ -1,4 +1,4 @@
-import { input_to_graph, graph_to_input, parse, transformCSTRoot, toTypedAST, Semantics, type AllASTNodes } from '../index.js';
+import { input_to_graph, graph_to_input, build, transformCSTRoot, toTypedAST, Semantics, type AllASTNodes } from '../index.js';
 
 // -----------------------------------------------------------------------
 
@@ -10,8 +10,8 @@ const RUN_BENCHMARK = false;
 const LOG_ASTIR = false;
 const LOG_DATA = false;
 
-const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
-// const input = await readFile('./json_sample1k.json', 'utf-8');
+// const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
+const input = await readFile('./json_sample1k.json', 'utf-8');
 console.log('Input: ', input.length);
 
 // -----------------------------------------------------------------------
@@ -137,16 +137,18 @@ if (RUN_NATIVE) {
   console.timeEnd('Native');
 }
 
+const parseJSON = build(jsonGraph);
+
 import Benchmark from 'benchmark';
 
 const suite = new Benchmark.Suite('json-test');
 
 suite.add("parser", () => {
-  const result = parse(jsonGraph, input, 'Entry');
+  const result = parseJSON(input, 'Entry');
 });
 
 suite.add("combined", () => {
-  const result = parse(jsonGraph, input, 'Entry');
+  const result = parseJSON(input, 'Entry');
   const astIR = transformCSTRoot(result);
   const typedAST = toTypedAST(astIR);
   const data = jsonSemantics.evaluate(typedAST);
@@ -160,7 +162,7 @@ suite.on('cycle', function (event: Benchmark.Event) {
 if (RUN_N > 0) {
   console.time(String(RUN_N));
   for (let i = 0; i < RUN_N; i++)
-    parse(jsonGraph, input, 'Entry');
+    parseJSON(input, 'Entry');
   console.timeEnd(String(RUN_N));
 }
 
@@ -168,7 +170,7 @@ if (RUN_BENCHMARK)
   suite.run();
 
 console.time('parse');
-const result = parse(jsonGraph, input, 'Entry');
+const result = parseJSON(input, 'Entry');
 console.timeEnd('parse');
 if (LOG_NUMBERS)
   console.log('Result: ', JSON.stringify(result).length);
