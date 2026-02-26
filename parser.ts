@@ -44,7 +44,7 @@ type ParserCtx<K extends StateName> = Readonly<{
 type RuntimeCtx<K extends StateName> = Readonly<{
   input: string;
 
-  getMemo(state: StateKey<K>, pos: number): MemoEntry | null;
+  getMemo(state: StateKey<K>, pos: number): MemoEntry | undefined;
   setMemo(state: StateKey<K>, pos: number, entry: MemoEntry): void;
 
   ws: RegExp;
@@ -657,19 +657,19 @@ export function build<K extends StateName>(
     if (!x)
       throw new Error(`Cannot start at generic state: ${start}`, { cause: { states, input, start } });
 
-    const memos = new Map<StateKey<K>, (MemoEntry | null)[]>();
+    const memos = new Map<StateKey<K>, Map<number, MemoEntry>>();
     for (const stateLabel of allStates) {
-      memos.set(stateLabel, Array(input.length).fill(null));
+      memos.set(stateLabel, new Map);
     }
 
     const rc: RuntimeCtx<K> = {
       input,
 
       getMemo(state, pos) {
-        return memos.get(state)![pos];
+        return memos.get(state)!.get(pos);
       },
       setMemo(state, pos, entry) {
-        memos.get(state)![pos] = entry;
+        memos.get(state)!.set(pos, entry);
       },
 
       ws
