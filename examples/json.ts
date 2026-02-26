@@ -6,12 +6,12 @@ const RUN_NATIVE = true;
 const LOG_GRAPH = false;
 const LOG_NUMBERS = true;
 const RUN_N = 10;
-const RUN_BENCHMARK = true;
+const RUN_BENCHMARK = false;
 const LOG_ASTIR = false;
 const LOG_DATA = false;
 
-// const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
-const input = await readFile('./json_sample1k.json', 'utf-8');
+const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
+// const input = await readFile('./json_sample1k.json', 'utf-8');
 console.log('Input: ', input.length);
 
 // -----------------------------------------------------------------------
@@ -137,7 +137,7 @@ if (RUN_NATIVE) {
   console.timeEnd('Native');
 }
 
-const parseJSON = build(jsonGraph);
+let parseJSON = build(jsonGraph);
 
 import Benchmark from 'benchmark';
 
