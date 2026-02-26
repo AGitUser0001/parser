@@ -476,7 +476,7 @@ function withOperators<K extends StateName>(
         ok: results.length ? results[results.length - 1].ok : true,
         pos: curPos,
         value: results,
-        kind: hasPlus ? '+' : '*'
+        kind: '*'
       };
     } : (rc, pos) => {
       const results: Result[] = [];
@@ -499,7 +499,7 @@ function withOperators<K extends StateName>(
         ok: results.length ? results[results.length - 1].ok : true,
         pos: curPos,
         value: results,
-        kind: hasPlus ? '+' : '*'
+        kind: '*'
       };
     };
   } else if (hasPlus) {
@@ -524,7 +524,7 @@ function withOperators<K extends StateName>(
         ok: results.length ? results[results.length - 1].ok : true,
         pos: curPos,
         value: results,
-        kind: hasPlus ? '+' : '*'
+        kind: '+'
       };
     } : (rc, pos) => {
       const results: Result[] = [];
@@ -549,7 +549,7 @@ function withOperators<K extends StateName>(
         ok: results.length ? results[results.length - 1].ok : true,
         pos: curPos,
         value: results,
-        kind: hasPlus ? '+' : '*'
+        kind: '+'
       };
     };
   }
