@@ -137,7 +137,9 @@ if (RUN_NATIVE) {
   console.timeEnd('Native');
 }
 
+console.time('build');
 let parseJSON = build(jsonGraph);
+console.timeEnd('build');
 
 import Benchmark from 'benchmark';
 
