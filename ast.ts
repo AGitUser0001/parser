@@ -15,7 +15,6 @@ export type ASTResult =
   | BaseASTResult & { type: 'state'; state: StateName; value: ASTResult[]; }
   | BaseASTResult & { type: 'terminal'; value: MatcherValue; }
   | BaseASTResult & { type: 'iteration'; kind: IterationOperator; value: ASTResult[][]; }
-  | BaseASTResult & { type: 'attrs'; attrs: string[]; value: ASTResult[]; }
   | BaseASTResult & { type: 'root'; value: ASTResult & { type: 'state'; }; source: ASTSource; };
 
 export function transformCSTRoot(result: Result): ASTResult & { type: 'root'; } {
@@ -103,20 +102,6 @@ export function transformCST(result: Result, out: ASTResult[], sourceCon: ASTSou
       }
       break;
 
-    case 'attrs':
-      {
-        const newOut: ASTResult[] = [];
-        len += transformCST(result.value, newOut, sourceCon);
-        out.push({
-          type: 'attrs',
-          value: newOut,
-          start: result.pos - len + wslen,
-          end: result.pos,
-          attrs: result.attrs
-        });
-      }
-      break;
-
     case 'lookahead':
       break;
 
@@ -168,7 +153,6 @@ export class RootNode extends ASTNode {
 }
 
 export class StateNode extends ASTNode {
-  public readonly attributeMap = new Map<string, AnyASTNode>();
   constructor(
     parent: AnyASTNode | null,
     children: AnyASTNode[],
@@ -238,23 +222,10 @@ function toTypedASTInternal(value: ASTResult, ownerNode: OwnerNode, source: ASTS
         }
       }
       return iterationNode;
-    case 'attrs':
-      if (!(ownerNode instanceof StateNode))
-        throw new Error(`Attribute node must be within state node`, { cause: { value, ownerNode } });
-      if (value.value.length !== 1)
-        throw new Error(`Attribute node must contain a result with arity 1`, { cause: value });
-      const target = value.value[0];
-      const resultNode = toTypedASTInternal(target, ownerNode, source);
-      for (const attr of value.attrs) {
-        if (ownerNode.attributeMap.has(attr))
-          throw new Error(`Attribute node conflict: ${attr}`, { cause: { value, ownerNode } });
-        ownerNode.attributeMap.set(attr, resultNode);
-      }
-      return resultNode;
     case 'root':
-      throw new TypeError(`Did not expect root node!`, { cause: { value, ownerNode } });
+      throw new TypeError(`Did not expect root node!`, { cause: { value } });
     default:
       const _exhaustive: never = value;
-      throw new Error(`Invalid ASTResult.type: ${(value as ASTResult).type}`, { cause: { value, ownerNode } });
+      throw new Error(`Invalid ASTResult.type: ${(value as ASTResult).type}`, { cause: { value } });
   }
 }

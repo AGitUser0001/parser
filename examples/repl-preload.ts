@@ -5,6 +5,7 @@ import * as ast from '../ast.js';
 import * as semantics from '../semantics.js';
 import * as tokenize from '../tokenize.js';
 import * as dsl from '../dsl/dsl.js';
+import * as emit from '../emit.js';
 
 //#region tests
 console.time('transform');
@@ -30,7 +31,7 @@ const arithmeticStates = {
   },
 
   Primary: {
-    group: [/\(/, 'Expr>attr', /\)/],
+    group: [/\(/, 'Expr', /\)/],
     num: ['number', ['?', [/e/i, 'number']]],
   },
 
@@ -40,7 +41,7 @@ const arithmeticStates = {
 export const g = graph.input_to_graph<keyof typeof arithmeticStates>(arithmeticStates);
 console.timeEnd('transform');
 console.time('gen');
-export const p = parser.build(g);
+export const p = parser.build(g, true);
 console.timeEnd('gen');
 
 export function run() {
@@ -111,10 +112,10 @@ export function run() {
   console.log('✅ deterministic invalid cases passed');
 }
 
-export const s = semantics.Semantics.returns<number>()('attr', g, {
+export const s = semantics.Semantics.returns<number>()(g, {
   Entry(expressions, extra) {
     let sum = 0;
-    for (const expr of [...expressions.children, ...extra.children]) {
+    for (const [expr] of [...expressions.iterations, ...extra.iterations]) {
       if (expr instanceof ast.TerminalNode)
         continue;
       sum += this(expr);
@@ -142,6 +143,9 @@ export const s = semantics.Semantics.returns<number>()('attr', g, {
       return this(left) + (10 ** this(opt_e_and_exp.children[1]));
     return this(left);
   },
+  Primary_group(lp, expr, rp) { 
+    return this(expr);
+  },
   number(num) {
     return +num.value;
   }
@@ -158,9 +162,9 @@ export function timeof<T extends (...args: any[]) => any>(fn: T, ...args: Parame
 }
 
 import * as preload from './repl-preload.js';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 for (const item of [graph, parser, scc, ast, semantics, tokenize, {
-  dsl, readFileSync
+  dsl, readFileSync, writeFileSync, emit
 }, preload] as any[]) {
   for (const key of Object.keys(item)) {
     (globalThis as any)[key] = item[key];

@@ -118,7 +118,7 @@ function stringToRegExp(string: string, flags?: string | undefined) {
 }
 
 export const createSemantics = Semantics.for(graph);
-export const semantics = createSemantics<Data<StateName>>('grammar', {
+export const semantics = createSemantics<Data<StateName>>({
   Grammar(stateIter) {
     const states: MutableStates<StateName> = Object.create(null);
 

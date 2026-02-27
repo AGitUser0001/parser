@@ -6,12 +6,12 @@ const RUN_NATIVE = true;
 const LOG_GRAPH = false;
 const LOG_NUMBERS = true;
 const RUN_N = 10;
-const RUN_BENCHMARK = false;
+const RUN_BENCHMARK = true;
 const LOG_ASTIR = false;
 const LOG_DATA = false;
 
-const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
-// const input = await readFile('./json_sample1k.json', 'utf-8');
+// const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
+const input = await readFile('./json_sample1k.json', 'utf-8');
 console.log('Input: ', input.length);
 
 // -----------------------------------------------------------------------
@@ -19,7 +19,7 @@ console.log('Input: ', input.length);
 //#region define
 const jsonStates = {
   Entry: [
-    'Value>json'
+    'Value'
   ],
   Value: [['/', 'Object', 'Array', 'string', 'number', 'boolean', 'null']],
   Object: [
@@ -67,7 +67,7 @@ if (LOG_GRAPH) {
 }
 
 //#region semantics
-const jsonSemantics = new Semantics('json', jsonGraph, {
+const jsonSemantics = new Semantics(jsonGraph, {
   Items(items_con) {
     if (!items_con.children.length)
       return [];

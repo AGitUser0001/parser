@@ -43,15 +43,13 @@ type OperatorPrefixed<K extends StateName> = K extends any ?
 
 type V_<K extends StateName> = StateKey<K> | Generic;
 
-export type Attr = `>${string}`;
 export type Generic = `@${string}`;
-export type StandaloneOperator = Operator | IterationOperator | Attr | Generic;
+export type StandaloneOperator = Operator | IterationOperator | Generic;
 
 export type StateName = string;
 export type StateKey<K extends StateName> = K | `${K}_${StateName}`;
-export type StateToAttr<K extends StateName> = `${StateKey<K> | OperatorPrefixed<K>}${Attr}`;
 
-export type TokenString<K extends StateName> = StateKey<K> | OperatorString<K> | StateToAttr<K>;
+export type TokenString<K extends StateName> = StateKey<K> | OperatorString<K>;
 export type Token<K extends StateName> = RegExp | TokenString<K> | CallToken<K>;
 export interface CallToken<K extends StateName> {
   state: StateKey<K>;
@@ -281,12 +279,6 @@ export function input_to_graph<K extends StateName>(input: States<K>) {
         }
       break;
     }
-    if (tok.includes('>')) {
-      const index = tok.indexOf('>');
-      const attr = tok.slice(index).trim() as Attr;
-      tok = tok.slice(0, index) as SimpleTokenString<K> | StandaloneOperator;
-      output.push(attr);
-    }
     if (output.length) {
       output.push(tok as SimpleTokenString<K>);
       return output;
@@ -373,21 +365,7 @@ export function isOperator(
       throw new TypeError(`Expected string, got: ${typeof tok}`, { cause: tok });
     if (standaloneOperatorSet.has(tok))
       return true;
-    if (isAttr(tok))
-      return true;
     if (isGeneric(tok))
-      return true;
-  }
-  return false;
-}
-
-export function isAttr(
-  tok: AnyToken<StateName>
-): tok is Attr {
-  if (isPrimitive(tok)) {
-    if (typeof tok !== 'string')
-      throw new TypeError(`Expected string, got: ${typeof tok}`, { cause: tok });
-    if (tok.startsWith('>'))
       return true;
   }
   return false;
@@ -411,32 +389,16 @@ export function parseGeneric(generic: Generic): string {
   return generic.slice(1).trim();
 }
 
-export function parseAttr(attr: Attr): string[] {
-  if (!isAttr(attr))
-    throw new Error(`Not an attribute string!`, { cause: attr });
-  const body = attr.slice(1).trim();
-  const targets = body.split(',').map(s => s.trim());
-  if (targets.length > 1 && !targets.at(-1))
-    targets.pop();
-  for (const target of targets) {
-    if (!target)
-      throw new Error(`Empty attribute target: "${target}"`, { cause: attr });
-  }
-  return targets;
-}
-
 function finalizeGraph<K extends StateName>(
   graph: Graph<K>
 ): void {
   for (const seq of graph.values()) {
-    const seenAttrs = new Map<string, GraphToken<K>>();
-    finalizeNode(seq, seenAttrs, graph);
+    finalizeNode(seq, graph);
   }
 }
 
 function finalizeNode<K extends StateName>(
   node: GraphToken<K>,
-  seenAttrs: Map<string, GraphToken<K>>,
   graph: Graph<K>,
   insideIteration = false
 ): void {
@@ -449,30 +411,7 @@ function finalizeNode<K extends StateName>(
 
     for (const item of node) {
       if (isOperator(item)) {
-        if (isAttr(item)) {
-          const attrs = parseAttr(item);
-          if (node.arity !== 1) {
-            throw new Error(
-              `Semantic attribute ${item} attached to node with arity ${node.arity}, expected node with arity 1`,
-              { cause: { node, graph } }
-            );
-          }
-          if (insideIteration)
-            throw new Error(
-              `Cannot have >attr inside iteration`,
-              { cause: { node, graph } }
-            );
-
-          for (const a of attrs) {
-            if (seenAttrs.has(a)) {
-              throw new Error(
-                `Duplicate semantic attribute >${a}`,
-                { cause: { seen: seenAttrs.get(a), node, graph } }
-              );
-            }
-            seenAttrs.set(a, node);
-          }
-        } else if (isGeneric(item)) {
+        if (isGeneric(item)) {
           // skip
         } else {
           operators.add(item);
@@ -528,7 +467,7 @@ function finalizeNode<K extends StateName>(
       );
 
     for (const item of node) {
-      finalizeNode(item, seenAttrs, graph, insideIteration || iteration);
+      finalizeNode(item, graph, insideIteration || iteration);
     }
     freeze(node);
     return;
@@ -571,7 +510,6 @@ function calculateArity_Sequence(
         return 1;
       }
       if (!isGeneric(item))
-        // # and >attr are transparent
         continue;
     }
 
@@ -605,7 +543,6 @@ function calculateArity_Choice(
       if (isGeneric(branch))
         branchArity = 1;
       else
-        // # or >attr alone: transparent
         continue;
     } else if (branch instanceof Sequence || branch instanceof Choice) {
       branchArity = branch.arity;
@@ -648,14 +585,11 @@ function getBitmask(ops: ReadonlySet<StandaloneOperator>) {
 
 function getOperators<K extends StateName>(xs: GraphCollection<K>): Operators<K> {
   const ops = new Set<StandaloneOperator>();
-  const attrs: string[] = [];
   const body: (Exclude<GraphToken<K>, StandaloneOperator> | Generic)[] = [];
 
   for (const x of xs) {
     if (isOperator(x)) {
-      if (isAttr(x))
-        attrs.push(...parseAttr(x));
-      else if (isGeneric(x))
+      if (isGeneric(x))
         body.push(x);
       else
         ops.add(x);
@@ -666,7 +600,6 @@ function getOperators<K extends StateName>(xs: GraphCollection<K>): Operators<K>
 
   return freeze([
     getBitmask(ops),
-    freeze(attrs),
     freeze(body)
   ]);
 }

@@ -3,8 +3,6 @@
     "target": "es2022",
     "module": "nodenext",
     "skipLibCheck": true,
-    "allowJs": true,
-    "checkJs": true,
     "verbatimModuleSyntax": true,
     "strict": true,
     "outDir": "./dist/",

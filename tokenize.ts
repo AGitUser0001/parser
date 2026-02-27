@@ -86,7 +86,6 @@ export function tokenize(root: Result): Token[] {
         break;
 
       case 'choice':
-      case 'attrs':
       case 'rewind':
         len += walk(node.value);
         break;

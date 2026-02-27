@@ -1,4 +1,4 @@
-Entry = Value>json;
+Entry = Value;
 
 Value = (
   | Object

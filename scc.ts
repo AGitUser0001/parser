@@ -14,7 +14,7 @@ export function prefixDeps<K extends StateName>(
   graph: Graph<K>,
   data: Sequence<K>
 ): { nullable: boolean; deps: StateKey<K>[]; } {
-  const [opMask, attrs, body] = data.operators;
+  const [opMask, body] = data.operators;
   let nullable = false;
   for (const op of nullableOperators)
     if (opMask & OP_MAP[op])
@@ -52,7 +52,7 @@ export function prefixDepsChoice<K extends StateName>(
   graph: Graph<K>,
   data: Choice<K>
 ): { nullable: boolean; deps: StateKey<K>[]; } {
-  const [opMask, attrs, body] = data.operators;
+  const [opMask, body] = data.operators;
 
   let nullable = false;
   for (const op of nullableOperators)
@@ -104,7 +104,7 @@ export function isSolid<K extends StateName>(
   data: Sequence<K> | Choice<K>,
   seen: string[]
 ) {
-  const [opMask, attrs, body] = data.operators;
+  const [opMask, body] = data.operators;
   for (const op of nullableOperators)
     if (opMask & OP_MAP[op])
       return false;

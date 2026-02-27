@@ -32,10 +32,8 @@ export type SemanticsSpec<K extends StateName, R, C> = {
 };
 
 export class Semantics<K extends StateName, R = any, C = void> extends MapView<SemanticsKey<K>, SemanticFn<K, R, C>> {
-  readonly name: string;
   #memo?: WeakMap<AnyASTNode, R>;
   constructor(
-    name: string,
     graph: Graph<K>,
     spec: SemanticsSpec<K, R, C>,
     // memoization assumes that the ctx will be the same each time
@@ -62,7 +60,7 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
         default:
           if (!graph.has(stateLabel))
             throw new Error(
-              `[${name}] Semantic defined for unknown state: ${stateLabel}`
+              `Semantics: Semantic defined for unknown state: ${stateLabel}`
             );
           const seq = graph.get(stateLabel)!;
           expected = seq.arity;
@@ -73,56 +71,50 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
 
       if (actual !== expected) {
         throw new Error(
-          `[${name}] Arity mismatch for ${stateLabel}: expected ${expected}, got ${actual}`
+          `Semantics: Arity mismatch for ${stateLabel}: expected ${expected}, got ${actual}`
         );
       }
     }
 
     super(map);
-    this.name = name;
     if (enable_memoization) {
       this.#memo = new WeakMap();
     }
   }
 
   static create<K extends StateName, R = any, C = void>(
-    name: string,
     graph: Graph<K>,
     spec: SemanticsSpec<K, R, C>,
     enable_memoization = false
   ) {
-    return new Semantics<K, R, C>(name, graph, spec, enable_memoization);
+    return new Semantics<K, R, C>(graph, spec, enable_memoization);
   }
   static for<K extends StateName>(graph: Graph<K>) {
     const result = <R = any, C = void>(
-      name: string,
       spec: SemanticsSpec<K, R, C>,
       enable_memoization = false
     ) =>
-      Semantics.create<K, R, C>(name, graph, spec, enable_memoization);
+      Semantics.create<K, R, C>(graph, spec, enable_memoization);
     const withFn = <C>() => {
       const result = <R = any>(
-        name: string,
         spec: SemanticsSpec<K, R, C>,
         enable_memoization = false
       ) =>
-        Semantics.create<K, R, C>(name, graph, spec, enable_memoization);
+        Semantics.create<K, R, C>(graph, spec, enable_memoization);
       result.returns = <R>() => (
-        name: string,
         spec: SemanticsSpec<K, R, C>,
         enable_memoization = false
       ) =>
-        Semantics.create<K, R, C>(name, graph, spec, enable_memoization);
+        Semantics.create<K, R, C>(graph, spec, enable_memoization);
       return result;
     };
     result.with = withFn;
     result.returns = <R>() => {
       const result = <C = void>(
-        name: string,
         spec: SemanticsSpec<K, R, C>,
         enable_memoization = false
       ) =>
-        Semantics.create<K, R, C>(name, graph, spec, enable_memoization);
+        Semantics.create<K, R, C>(graph, spec, enable_memoization);
       result.with = <C>() => withFn<C>().returns<R>();
       return result;
     };
@@ -130,22 +122,20 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
   }
   static with<C>() {
     const result = <K extends StateName, R = any>(
-      name: string,
       graph: Graph<K>,
       spec: SemanticsSpec<K, R, C>,
       enable_memoization = false
     ) =>
-      Semantics.create<K, R, C>(name, graph, spec, enable_memoization);
+      Semantics.create<K, R, C>(graph, spec, enable_memoization);
     result.for = <K extends StateName>(graph: Graph<K>) =>
       Semantics.for<K>(graph).with<C>();
     result.returns = <R>() => {
       const result = <K extends StateName>(
-        name: string,
         graph: Graph<K>,
         spec: SemanticsSpec<K, R, C>,
         enable_memoization = false
       ) =>
-        Semantics.create<K, R, C>(name, graph, spec, enable_memoization);
+        Semantics.create<K, R, C>(graph, spec, enable_memoization);
       result.for = <K extends StateName>(graph: Graph<K>) =>
         Semantics.for<K>(graph).with<C>().returns<R>();
     };
@@ -153,12 +143,11 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
   }
   static returns<R>() {
     const result = <K extends StateName, C = void>(
-      name: string,
       graph: Graph<K>,
       spec: SemanticsSpec<K, R, C>,
       enable_memoization = false
     ) =>
-      Semantics.create<K, R, C>(name, graph, spec, enable_memoization);
+      Semantics.create<K, R, C>(graph, spec, enable_memoization);
     result.for = <K extends StateName>(graph: Graph<K>) =>
       Semantics.for<K>(graph).returns<R>();
     result.with = <C>() => Semantics.with<C>().returns<R>();
@@ -187,22 +176,18 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
       fn = this.get(stateLabel);
     }
     if (!fn) {
-      const linkedNode = node.attributeMap.get(this.name);
-      if (linkedNode) {
-        return this.#descend(linkedNode, ctx);
-      }
       if (node.children.length === 1) {
         return this.#descend(node.children[0], ctx);
       }
       throw new Error(
-        `[${this.name}] No semantics defined for state: ${stateLabel}`,
+        `Semantics (while evaluating state): No semantics defined for state: ${stateLabel}`,
         { cause: { node, stateLabel } }
       );
     }
 
     if (node.children.length !== fn.length) {
       throw new Error(
-        `[${this.name}] Runtime arity mismatch for ${stateLabel}: ` +
+        `Semantics (while evaluating state): Runtime arity mismatch for ${stateLabel}: ` +
         `expected ${fn.length}, got: ${node.children.length}`,
         { cause: { node, stateLabel, fn } }
       );
@@ -220,12 +205,12 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
     }
     if (!fn)
       throw new Error(
-        `[${this.name}] Semantics.use: No semantics defined: ${key}`,
+        `Semantics.use: No semantics defined: ${key}`,
         { cause: { node, key, args } }
       );
     if (args.length !== fn.length) {
       throw new Error(
-        `[${this.name}] Semantics.use: Arity mismatch for ${key}: ` +
+        `Semantics.use: Arity mismatch for ${key}: ` +
         `expected ${fn.length}, got: ${args.length}`,
         { cause: { node, key, args, fn } }
       );
@@ -238,7 +223,7 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
     const fn = this.get('#iter');
     if (!fn) {
       throw new Error(
-        `[${this.name}] Cannot evaluate iteration node: no semantics defined for iteration nodes ('#iter').`,
+        `Semantics: Cannot evaluate iteration node: no semantics defined for iteration nodes ('#iter').`,
         { cause: node }
       );
     }
@@ -250,7 +235,7 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
     const fn = this.get('#terminal');
     if (!fn) {
       throw new Error(
-        `[${this.name}] Cannot evaluate terminal node: no semantics defined for terminal nodes ('#terminal').`,
+        `Semantics: Cannot evaluate terminal node: no semantics defined for terminal nodes ('#terminal').`,
         { cause: node }
       );
     }
@@ -261,7 +246,7 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
   #evalRoot(node: RootNode, ctx: C): R {
     if (node.children.length !== 1)
       throw new Error(
-        `[${this.name}] Cannot evaluate root node: wrong number of children: ${node.children.length}.`,
+        `Semantics: Cannot evaluate root node: wrong number of children: ${node.children.length}.`,
         { cause: node }
       );
     const fn = this.get('#root');
@@ -309,7 +294,7 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
     else {
       const _exhaustive: never = node;
       throw new Error(
-        `[${this.name}] Cannot evaluate unknown node`,
+        `Semantics: Cannot evaluate unknown node`,
         { cause: node }
       );
     }

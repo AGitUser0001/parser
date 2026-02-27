@@ -10,6 +10,7 @@
     "./dsl": "./dist/dsl/dsl.js",
     "./graph": "./dist/graph.js",
     "./parser": "./dist/parser.js",
+    "./emit": "./dist/emit.js",
     "./ast": "./dist/ast.js",
     "./semantics": "./dist/semantics.js",
     "./tokenize": "./dist/tokenize.js",

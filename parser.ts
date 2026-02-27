@@ -1,6 +1,7 @@
 import { Graph, isGeneric, type GraphToken, Choice, Sequence, type GraphCollection, type StandaloneOperator, type StateKey, type StateName, type IterationOperator, type Generic, OP_MAP } from './graph.js';
 import type { SccId } from './scc.js';
 import type { MapView } from './shared.js';
+import { logic, type Resources, type Fn } from './emit.js';
 
 export type ResultValue =
   | Result
@@ -23,32 +24,31 @@ export type Result =
   | BaseResult & { type: 'terminal'; value: MatcherValue; ok: true; }
   | BaseResult & { type: 'terminal'; value: null; ok: false; }
   | BaseResult & { type: 'iteration'; kind: IterationOperator; value: Result[]; }
-  | BaseResult & { type: 'attrs'; attrs: string[]; value: Result; }
   | BaseResult & { type: 'rewind'; value: Result; }
   | BaseResult & { type: 'root'; trailing_ws: MatcherValue | null; value: Result & { type: 'state'; }; };
 
 export type MatcherValue = string;
 
 type MemoEntry = { result: Result; };
-type ParserCtx<K extends StateName> = Readonly<{
-  graph: Graph<K>;
+interface ParserCtx<K extends StateName> {
+  readonly graph: Graph<K>;
 
-  sccOf: MapView<StateKey<K>, SccId>;
-  sccMembers: MapView<SccId, StateKey<K>[]>;
+  readonly sccOf: MapView<StateKey<K>, SccId>;
+  readonly sccMembers: MapView<SccId, StateKey<K>[]>;
 
-  lexicalStates: Set<StateKey<K>>;
+  readonly lexicalStates: Set<StateKey<K>>;
   bind(state: StateKey<K>, cb: (val: RV<K>) => void): void;
-}>;
+  logic<T extends (...args: any[]) => any = FnT<K>>(closure: T, resources: Resources<FnT<K, unknown>>): Fn<T, FnT<K, unknown>>
+};
 
-
-type RuntimeCtx<K extends StateName> = Readonly<{
-  input: string;
+interface RuntimeCtx<K extends StateName> {
+  readonly input: string;
 
   getMemo(state: StateKey<K>, pos: number): MemoEntry | undefined;
   setMemo(state: StateKey<K>, pos: number, entry: MemoEntry): void;
 
-  ws: RegExp;
-}>;
+  readonly ws: RegExp;
+};
 
 function improves(next: Result, prev: Result): boolean {
   return next.ok && (!prev.ok || next.pos > prev.pos);
@@ -58,8 +58,9 @@ function improves_error(next: Result, prev: Result): boolean {
   return !prev.ok && !next.ok && (next.pos >= prev.pos);
 }
 
-type RV<K extends StateName> = (rc: RuntimeCtx<K>, pos: number) => Result;
-type StateRV<K extends StateName> = (rc: RuntimeCtx<K>, pos: number) => Result & { type: 'state'; };
+export type FnT<K extends StateName, R = Result> = (rc: RuntimeCtx<K>, pos: number) => R;
+export type RV<K extends StateName> = Fn<FnT<K>, FnT<K>>;
+export type StateRV<K extends StateName> = Fn<FnT<K, Result & { type: 'state' }>, FnT<K>>;
 function buildState<K extends StateName>(
   ctx: ParserCtx<K>,
   state: StateKey<K>
@@ -67,7 +68,7 @@ function buildState<K extends StateName>(
   const sid = ctx.sccOf.get(state);
   if (sid === undefined) {
     const x = evalStateBody(ctx, state, ctx.lexicalStates.has(state));
-    return (rc: RuntimeCtx<K>, pos: number) => {
+    return ctx.logic((rc, pos) => {
       const existing = rc.getMemo(state, pos);
       if (existing) {
         const result = existing.result;
@@ -77,11 +78,11 @@ function buildState<K extends StateName>(
       const result = x(rc, pos);
       rc.setMemo(state, pos, { result });
       return { type: 'state', ok: result.ok, pos: result.pos, value: result, state };
-    };
+    }, { x, state });
   }
 
   const s = solveSCC(ctx, sid);
-  return (rc: RuntimeCtx<K>, pos: number) => {
+  return ctx.logic((rc, pos) => {
     const existing = rc.getMemo(state, pos);
     if (existing) {
       const result = existing.result;
@@ -96,13 +97,13 @@ function buildState<K extends StateName>(
 
     const result = entry.result;
     return { type: 'state', ok: result.ok, pos: result.pos, value: result, state };
-  }
+  }, { s, state });
 }
 
 function solveSCC<K extends StateName>(
   ctx: ParserCtx<K>,
   sccId: SccId
-): (rc: RuntimeCtx<K>, pos: number) => void {
+): Fn<FnT<K, void>, FnT<K>> {
   const group = ctx.sccMembers.get(sccId);
   if (!group || group.length === 0)
     throw new Error(`Internal error: invalid scc group for ${sccId}`, { cause: { ctx, sccId, group } });
@@ -117,7 +118,7 @@ function solveSCC<K extends StateName>(
   if (ev.length === 1) {
     const x = ev[0];
     const st = group[0];
-    return (rc: RuntimeCtx<K>, pos: number) => {
+    return ctx.logic((rc, pos) => {
       let entry = rc.getMemo(st, pos);
       if (!entry) {
         entry = { result: { type: 'none', ok: false, pos, value: null } };
@@ -132,10 +133,10 @@ function solveSCC<K extends StateName>(
           return;
         } else return;
       }
-    }
+    }, { x, st });
   }
 
-  return (rc: RuntimeCtx<K>, pos: number) => {
+  return ctx.logic((rc, pos) => {
     let entries: MemoEntry[] = Array(group.length);
     for (let i = 0; i < group.length; i++) {
       const st = group[i];
@@ -162,7 +163,7 @@ function solveSCC<K extends StateName>(
         }
       }
     }
-  }
+  }, { ev, group });
 }
 
 function evalStateBody<K extends StateName>(
@@ -196,17 +197,17 @@ function buildTerm<K extends StateName>(
   if (term instanceof RegExp) {
     const x = buildRegex(ctx, term);
     if (lexical)
-      return (rc, pos) => {
+      return ctx.logic((rc, pos) => {
         const result = x(rc, pos);
         return result;
-      }
-    return (rc, pos) => {
+      }, { x });
+    return ctx.logic((rc, pos) => {
       let ws;
       [ws, pos] = skipWs(rc, pos);
       const result = x(rc, pos);
       if (ws) result.ws = result.ws ? ws + result.ws : ws;
       return result;
-    }
+    }, { x });
   } else if (term instanceof Sequence) {
     return buildSequence(ctx, term, lexical);
   } else if (term instanceof Choice) {
@@ -216,39 +217,39 @@ function buildTerm<K extends StateName>(
     ctx.bind(term, v => { x = v; });
 
     if (lexical)
-      return (rc, pos) => {
+      return ctx.logic((rc, pos) => {
         const result = x(rc, pos);
         return result;
-      }
-    return (rc, pos) => {
+      }, { toState: term });
+    return ctx.logic((rc, pos) => {
       let ws;
       [ws, pos] = skipWs(rc, pos);
       const result = x(rc, pos);
       if (ws) result.ws = result.ws ? ws + result.ws : ws;
       return result;
-    }
+    }, { toState: term });
   }
 }
-const noop: RV<StateName> = (rc, pos) => {
+const noop: RV<StateName> = logic<FnT<StateName>, never>((rc, pos) => {
   throw new Error('Internal Error: noop reached.', { cause: { rc, pos } });
-}
+}, { a: logic(() => { }, {}) });
 
 function buildSequence<K extends StateName>(
   ctx: ParserCtx<K>,
   seq: Sequence<K>,
   lexical: boolean
 ): RV<K> {
-  const [_opMask, _attrs, body] = seq.operators;
+  const [_opMask, body] = seq.operators;
   lexical = lexScope(ctx, seq, lexical);
   let r: RV<K>;
   if (body.length === 1) {
     const term = body[0];
     throwOnGeneric(term);
     const x = buildTerm(ctx, term, lexical);
-    r = (rc, pos) => {
+    r = ctx.logic((rc, pos) => {
       const r = x(rc, pos);
       return { type: 'sequence', ok: r.ok, pos: r.pos, value: [r] };
-    }
+    }, { x });
   } else {
     const ev: RV<K>[] = [];
     for (const term of body) {
@@ -256,7 +257,7 @@ function buildSequence<K extends StateName>(
       const x = buildTerm(ctx, term, lexical);
       ev.push(x);
     }
-    r = (rc, pos) => {
+    r = ctx.logic((rc, pos) => {
       let curPos = pos;
       let results: Result[] = [];
       for (const x of ev) {
@@ -266,7 +267,7 @@ function buildSequence<K extends StateName>(
           return { type: 'sequence', ok: false, pos: curPos, value: results };
       }
       return { type: 'sequence', ok: true, pos: curPos, value: results };
-    }
+    }, { ev });
   }
   return withOperators(ctx, seq, r, lexical);
 }
@@ -276,17 +277,17 @@ function buildChoice<K extends StateName>(
   choice: Choice<K>,
   lexical: boolean
 ): RV<K> {
-  const [opMask, _attrs, body] = choice.operators;
+  const [opMask, body] = choice.operators;
   lexical = lexScope(ctx, choice, lexical);
   let r: RV<K>;
   if (body.length === 1) {
     const term = body[0];
     throwOnGeneric(term);
     const x = buildTerm(ctx, term, lexical);
-    r = (rc, pos) => {
+    r = ctx.logic((rc, pos) => {
       const r = x(rc, pos);
       return { type: 'choice', ok: r.ok, pos: r.pos, value: r, alt: 0 };
-    }
+    }, { x });
   } else {
     const ev: RV<K>[] = [];
     for (const term of body) {
@@ -296,7 +297,7 @@ function buildChoice<K extends StateName>(
     }
     const hasOrderedChoice = opMask & OP_MAP['/'];
     if (hasOrderedChoice)
-      r = (rc, pos) => {
+      r = ctx.logic((rc, pos) => {
         let error: Result = { type: 'none', ok: false, pos, value: null };
         let errorId: number | null = null;
         for (let i = 0; i < ev.length; i++) {
@@ -310,12 +311,12 @@ function buildChoice<K extends StateName>(
           }
         }
         return { type: 'choice', ok: error.ok, pos: error.pos, value: error, alt: errorId };
-      }
+      }, { ev });
     else
-      r = (rc, pos) => {
+      r = ctx.logic((rc, pos) => {
         let best: Result = { type: 'none', ok: false, pos, value: null };
         let bestId: number | null = null;
-        for (let i = 0; i < body.length; i++) {
+        for (let i = 0; i < ev.length; i++) {
           const alt = ev[i];
           const r = alt(rc, pos);
           if (improves(r, best)) {
@@ -327,7 +328,7 @@ function buildChoice<K extends StateName>(
           }
         }
         return { type: 'choice', ok: best.ok, pos: best.pos, value: best, alt: bestId };
-      }
+      }, { ev });
   }
   return withOperators(ctx, choice, r, lexical);
 }
@@ -336,19 +337,18 @@ function buildRegex<K extends StateName>(ctx: ParserCtx<K>, re: RegExp): RV<K> {
   if (!re.sticky || re.global)
     throw new Error(`matchRegex: Expected sticky and non-global regex, got: ${re.flags}`, { cause: re });
 
-  return (rc, pos) => {
+  return ctx.logic((rc, pos): Result => {
     re.lastIndex = pos;
     const m = re.exec(rc.input);
 
     if (!m) return { type: 'terminal', ok: false, pos, value: null };
     const value = m[0];
     return { type: 'terminal', ok: true, pos: pos + value.length, value };
-  }
+  }, { re });
 }
 
 export type Operators<K extends StateName> = readonly [
   opMask: number,
-  attrs: readonly string[],
   body: readonly (Exclude<GraphToken<K>, StandaloneOperator> | Generic)[]
 ];
 
@@ -366,7 +366,7 @@ function lexScope<K extends StateName>(
   data: GraphCollection<K>,
   lexical: boolean
 ): boolean {
-  const [opMask, _, _body] = data.operators;
+  const [opMask, _body] = data.operators;
 
   const hasLex = opMask & OP_MAP['#'];
   const hasSyn = opMask & OP_MAP['%'];
@@ -383,7 +383,7 @@ function withOperators<K extends StateName>(
   r: RV<K>,
   lexical: boolean
 ): RV<K> {
-  const [opMask, attrs, _body] = data.operators;
+  const [opMask, _body] = data.operators;
 
   const hasPosLA = opMask & OP_MAP['&'];
   const hasNegLA = opMask & OP_MAP['!'];
@@ -395,7 +395,7 @@ function withOperators<K extends StateName>(
 
   if (hasAt) {
     const x = r;
-    r = lexical ? (rc, pos) => {
+    r = lexical ? ctx.logic((rc, pos) => {
       const r = x(rc, pos);
       return {
         type: 'iteration',
@@ -404,7 +404,7 @@ function withOperators<K extends StateName>(
         value: [r],
         kind: '@'
       };
-    } : (rc, pos) => {
+    }, { x, hasRewind }) : ctx.logic((rc, pos) => {
       let [ws, runPos] = skipWs(rc, pos);
       const r = x(rc, runPos);
       return {
@@ -415,10 +415,10 @@ function withOperators<K extends StateName>(
         kind: '@',
         ws
       };
-    };
+    }, { x, hasRewind });
   } else if (hasOpt) {
     const x = r;
-    r = lexical ? (rc, pos) => {
+    r = lexical ? ctx.logic((rc, pos) => {
       const r = x(rc, pos);
       if (!r.ok && (hasRewind || r.pos === pos))
         return {
@@ -435,7 +435,7 @@ function withOperators<K extends StateName>(
           value: [r],
           kind: '?'
         };
-    } : (rc, pos) => {
+    }, { x, hasRewind }) : ctx.logic((rc, pos) => {
       let [ws, runPos] = skipWs(rc, pos);
       const r = x(rc, runPos);
       if (!r.ok && (hasRewind || r.pos === runPos))
@@ -454,10 +454,10 @@ function withOperators<K extends StateName>(
           kind: '?',
           ws
         };
-    };
+    }, { x, hasRewind });
   } else if (hasStar) {
     const x = r;
-    r = lexical ? (rc, pos) => {
+    r = lexical ? ctx.logic((rc, pos) => {
       const results: Result[] = [];
       let curPos = pos;
 
@@ -478,7 +478,7 @@ function withOperators<K extends StateName>(
         value: results,
         kind: '*'
       };
-    } : (rc, pos) => {
+    }, { x, hasRewind }) : ctx.logic((rc, pos) => {
       const results: Result[] = [];
       let curPos = pos;
 
@@ -501,10 +501,10 @@ function withOperators<K extends StateName>(
         value: results,
         kind: '*'
       };
-    };
+    }, { x, hasRewind });
   } else if (hasPlus) {
     const x = r;
-    r = lexical ? (rc, pos) => {
+    r = lexical ? ctx.logic((rc, pos) => {
       const results: Result[] = [];
       let curPos = pos;
 
@@ -526,7 +526,7 @@ function withOperators<K extends StateName>(
         value: results,
         kind: '+'
       };
-    } : (rc, pos) => {
+    }, { x, hasRewind }) : ctx.logic((rc, pos) => {
       const results: Result[] = [];
       let curPos = pos;
 
@@ -551,13 +551,13 @@ function withOperators<K extends StateName>(
         value: results,
         kind: '+'
       };
-    };
+    }, { x, hasRewind });
   }
 
   // --- rewind ---
   if (hasRewind && !hasAt && !hasOpt && !hasStar && !hasPlus) {
     const x = r;
-    r = (rc, pos) => {
+    r = ctx.logic((rc, pos) => {
       const result = x(rc, pos);
       return {
         type: 'rewind',
@@ -565,13 +565,13 @@ function withOperators<K extends StateName>(
         pos: result.ok ? result.pos : pos,
         value: result
       }
-    };
+    }, { x });
   }
 
   // --- lookahead ---
   if (hasPosLA) {
     const x = r;
-    r = (rc, pos) => {
+    r = ctx.logic((rc, pos) => {
       const result = x(rc, pos);
       return {
         type: 'lookahead',
@@ -580,10 +580,10 @@ function withOperators<K extends StateName>(
         value: result,
         positive: true
       }
-    };
+    }, { x });
   } else if (hasNegLA) {
     const x = r;
-    r = (rc, pos) => {
+    r = ctx.logic((rc, pos) => {
       const result = x(rc, pos);
       return {
         type: 'lookahead',
@@ -592,21 +592,7 @@ function withOperators<K extends StateName>(
         value: result,
         positive: false
       }
-    };
-  }
-
-  if (attrs.length > 0) {
-    const x = r;
-    r = (rc, pos) => {
-      const result = x(rc, pos);
-      return {
-        type: 'attrs',
-        ok: result.ok,
-        pos: result.pos,
-        value: result,
-        attrs: attrs.slice()
-      }
-    };
+    }, { x });
   }
 
   return r;
@@ -614,9 +600,31 @@ function withOperators<K extends StateName>(
 
 const WS_REGEX = /\s+/y;
 const LEXICAL_REGEX = /^[a-z_]/;
+export type ParserFn<K extends StateName> = (input: string, start: StateKey<K>, ws?: RegExp) => Result & { type: 'root'; };
+type ParserResources<K extends StateName> = {
+  states: Map<StateKey<K>, StateRV<K>>,
+  allStates: Set<StateKey<K>>,
+  lexicalStates: Set<StateKey<K>>,
+  WS_REGEX: RegExp
+};
+export type Parser<K extends StateName> = Fn<ParserFn<K>, FnT<K>> & { resources: ParserResources<K> };
+
 export function build<K extends StateName>(
-  graph: Graph<K>
-): (input: string, start: StateKey<K>, ws?: RegExp) => Result & { type: 'root'; } {
+  graph: Graph<K>,
+  metadata: true
+): Parser<K>;
+export function build<K extends StateName>(
+  graph: Graph<K>,
+  metadata?: false
+): ParserFn<K>;
+export function build<K extends StateName>(
+  graph: Graph<K>,
+  metadata: boolean
+): ParserFn<K> | Parser<K>;
+export function build<K extends StateName>(
+  graph: Graph<K>,
+  metadata = false
+): ParserFn<K> | Parser<K> {
   const lexicalStates = new Set<StateKey<K>>();
   const allStates = new Set(graph.keys());
   const toBind = new Map<StateKey<K>, ((val: RV<K>) => void)[]>();
@@ -633,6 +641,11 @@ export function build<K extends StateName>(
     lexicalStates,
     bind(state, cb) {
       toBind.get(state)!.push(cb);
+    },
+    logic(closure, resources) {
+      if (metadata)
+        return logic(closure, resources);
+      return closure as unknown as Fn<typeof closure, FnT<K, unknown>>;
     }
   };
 
@@ -647,7 +660,7 @@ export function build<K extends StateName>(
       cb(states.get(stateLabel)!);
   }
 
-  return function parse(input, start, ws) {
+  const parse: ParserFn<K> = (input, start, ws) => {
     ws ??= WS_REGEX;
     if (!ws.sticky || ws.global) {
       throw new Error("Whitespace regex must be sticky and non-global");
@@ -695,5 +708,8 @@ export function build<K extends StateName>(
       ok: false, pos: endPos, value: result,
       trailing_ws
     };
-  }
+  };
+  if (metadata)
+    return ctx.logic(parse, { states, allStates, lexicalStates, WS_REGEX } satisfies ParserResources<K>);
+  return parse;
 }
