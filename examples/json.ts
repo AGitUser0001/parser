@@ -1,4 +1,4 @@
-import { input_to_graph, graph_to_input, build, transformCSTRoot, toTypedAST, Semantics, type AllASTNodes, emit, ParserFn, type GraphStates } from 'parser';
+import { input_to_graph, graph_to_input, build, transformCSTRoot, toTypedAST, Semantics, type AllASTNodes, emit, ParserFn, type GraphStates, tokenize } from 'parser';
 import util from 'node:util';
 import { readFile, writeFile } from 'node:fs/promises';
 
@@ -161,20 +161,27 @@ if (!RUN_EMIT) {
 }
 
 import Benchmark from 'benchmark';
+import { test } from 'node:test';
 
 const suite = new Benchmark.Suite('json-test');
 
-suite.add("combined", () => {
+const tests = [() => suite.add("combined", () => {
   const result = parseJSON(input, 'Entry');
   const astIR = transformCSTRoot(result);
   const typedAST = toTypedAST(astIR);
   const data = jsonSemantics.evaluate(typedAST);
   data;
-});
-
-suite.add("parser", () => {
+}), () => suite.add("parser", () => {
   const result = parseJSON(input, 'Entry');
-});
+  result;
+}), () => suite.add("parse_tokenize", () => {
+  const result = parseJSON(input, 'Entry');
+  const tokens = tokenize(result);
+  tokens;
+})].map(value => ({ value, sort: Math.random() }))
+  .sort((a, b) => a.sort - b.sort)
+  .map(({ value }) => value);
+tests.forEach(t => t());
 
 suite.on('cycle', function (event: Benchmark.Event) {
   console.log(String(event.target));
@@ -203,6 +210,13 @@ if (result.ok) {
 
   if (LOG_NUMBERS)
     console.log('ASTIR: ', JSON.stringify(astIR).length);
+
+  console.time('tokenize');
+  const tokens = tokenize(result);
+  console.timeEnd('tokenize');
+
+  if (LOG_NUMBERS)
+    console.log('Tokens#: ', tokens.length, ' Tokens: ', JSON.stringify(tokens).length);
 
   if (LOG_ASTIR) {
     console.log(JSON.stringify(astIR).slice(0, 50000));
