@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "nodenext",
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "strict": true,
+    "outDir": "./",
+    "declaration": true
+  },
+  "include": [
+    "./*.ts"
+  ],
+  "exclude": [
+    "../../*.ts",
+    "../../*/*.ts"
+  ]
+}

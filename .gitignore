@@ -3,5 +3,3 @@ dist/
 
 *.cpuprofile
 turbo-*
-
-examples/json_parser.js

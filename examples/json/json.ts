@@ -1,4 +1,4 @@
-import { input_to_graph, graph_to_input, build, transformCSTRoot, toTypedAST, Semantics, type AllASTNodes, emit, ParserFn, type GraphStates, tokenize } from 'parser';
+import { input_to_graph, graph_to_input, build, transformCSTRoot, toTypedAST, Semantics, type AllASTNodes, emit, type ParserFn, type GraphStates, tokenize } from '../../dist/index.js';
 let util, readFile, writeFile;
 if (typeof global !== 'undefined') {
   util = await import('node:util');
@@ -163,7 +163,8 @@ if (!RUN_EMIT) {
   console.timeEnd('import');
 }
 
-import Benchmark from 'benchmark';
+const { default: Benchmark } = typeof global === 'undefined' ? (await import('https://esm.sh/benchmark' as string)) as { default: typeof import('benchmark') } : await import('benchmark');
+if (typeof global === 'undefined') (window as any).Benchmark = Benchmark;
 
 const suite = new Benchmark.Suite('json-test');
 
@@ -185,7 +186,7 @@ const tests = [() => suite.add("combined", () => {
   .map(({ value }) => value);
 tests.forEach(t => t());
 
-suite.on('cycle', function (event: Benchmark.Event) {
+suite.on('cycle', function (event: import('benchmark').Event) {
   console.log(String(event.target));
 });
 
