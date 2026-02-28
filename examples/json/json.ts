@@ -14,8 +14,8 @@ const RUN_N = 10;
 const RUN_BENCHMARK = true;
 const LOG_ASTIR = false;
 const LOG_DATA = false;
-const RUN_EMIT = false;
-const WRITE_EMIT = false;
+const RUN_EMIT = true;
+const WRITE_EMIT = true;
 const EMIT_PATH = './json_parser.js';
 
 const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/256KB.json')).text();
