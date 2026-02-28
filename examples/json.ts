@@ -11,11 +11,12 @@ const RUN_N = 10;
 const RUN_BENCHMARK = true;
 const LOG_ASTIR = false;
 const LOG_DATA = false;
-const RUN_EMIT = true;
-const WRITE_EMIT = true;
+const RUN_EMIT = false;
+const WRITE_EMIT = false;
+const EMIT_PATH = './json_parser.js';
 
-// const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
-const input = await readFile('./json_sample1k.json', 'utf-8');
+const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/256KB.json')).text();
+// const input = await readFile('./json_sample1k.json', 'utf-8');
 console.log('Input: ', input.length);
 
 // -----------------------------------------------------------------------
@@ -146,7 +147,7 @@ if (WRITE_EMIT) {
   console.time('emit');
   const emitted = emit(parser);
   console.timeEnd('emit');
-  await writeFile('./json_parser.js', emitted);
+  await writeFile(EMIT_PATH, emitted);
 }
 if (!RUN_EMIT) {
   console.time('build');
@@ -154,7 +155,7 @@ if (!RUN_EMIT) {
   console.timeEnd('build');
 } else {
   console.time('import');
-  let s = './json_parser.js';
+  let s = EMIT_PATH;
   parseJSON = (await import(s)).parse;
   console.timeEnd('import');
 }
