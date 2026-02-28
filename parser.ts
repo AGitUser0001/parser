@@ -220,14 +220,14 @@ function buildTerm<K extends StateName>(
       return ctx.logic((rc, pos) => {
         const result = x(rc, pos);
         return result;
-      }, { toState: term });
+      }, { toState: ['x', term] });
     return ctx.logic((rc, pos) => {
       let ws;
       [ws, pos] = skipWs(rc, pos);
       const result = x(rc, pos);
       if (ws) result.ws = result.ws ? ws + result.ws : ws;
       return result;
-    }, { toState: term });
+    }, { toState: ['x', term] });
   }
 }
 const noop: RV<StateName> = logic<FnT<StateName>, never>((rc, pos) => {
@@ -667,8 +667,10 @@ export function build<K extends StateName>(
     }
 
     const x = states.get(start);
+    if (!x && allStates.has(start))
+      throw new Error(`Cannot start at generic state: ${start}`, { cause: { input, start } });
     if (!x)
-      throw new Error(`Cannot start at generic state: ${start}`, { cause: { states, input, start } });
+      throw new Error(`Cannot start at unknown state: ${start}`, { cause: { input, start } });
 
     const memos = new Map<StateKey<K>, Map<number, MemoEntry>>();
     for (const stateLabel of allStates) {

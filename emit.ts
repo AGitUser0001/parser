@@ -5,7 +5,7 @@ type Func = (...args: any[]) => any;
 type O<T extends Func> = Fn<T> | string | number | boolean | RegExp | O<T>[] | Set<O<T>> | Map<O<T>, O<T>>;
 export type Resources<T extends Func> = {
   [key: string]: O<T>;
-} & { toState?: never } | { toState: StateName };
+} & { toState?: [string, StateName] };
 export type Fn<T extends Func, X extends Func = T> = {
   (...args: Parameters<T>): ReturnType<T>;
   resources: Resources<X>;
@@ -18,7 +18,7 @@ export function logic<T extends Func, X extends Func>(closure: T, resources: Res
 
 interface EmitCtx<K extends StateName> {
   readonly vars: Map<string, string>;
-  readonly memoMap: Map<Fn<FnT<K, unknown>>, string>;
+  readonly funcToState: Map<Fn<FnT<K, unknown>>, StateKey<K>>;
   readonly stateMap: Map<StateKey<K>, string>;
   name(): `$${string}$`;
 };
@@ -31,7 +31,7 @@ export function emit<K extends StateName>(
   const ctx: EmitCtx<K> = {
     vars: new Map,
     stateMap: new Map,
-    memoMap: new Map,
+    funcToState: new Map,
     name() {
       const base36 = (++c).toString(36).padStart(6, '0');
       return `$${base36}$`;
@@ -43,10 +43,10 @@ export function emit<K extends StateName>(
     ctx.stateMap.set(stateKey, nK);
     ctx.vars.set(nK, `() => { throw new Error("Internal error: state definition missing."); }`);
   }
-  for (const [key, state] of states) {
-    const nK = ctx.stateMap.get(key)!;
+  for (const [stateKey, state] of states) {
+    const nK = ctx.stateMap.get(stateKey)!;
     ctx.vars.set(nK, emitValue(ctx, state));
-    ctx.memoMap.set(state, nK);
+    ctx.funcToState.set(state, stateKey);
   }
   let code = '';
   let parserv = emitFn(ctx, parser);
@@ -104,12 +104,17 @@ function emitFn<K extends StateName>(
   ctx: EmitCtx<K>,
   value: Fn<Func, FnT<K, unknown>>
 ): string {
-  if (ctx.memoMap.has(value)) return ctx.memoMap.get(value)!;
-  if (value.resources.toState !== undefined)
-    return ctx.stateMap.get(value.resources.toState as StateKey<K>)!;
+  if (ctx.funcToState.has(value)) {
+    const stateKey = ctx.funcToState.get(value)!;
+    return ctx.stateMap.get(stateKey)!;
+  }
   let e = Object.entries(value.resources);
   let k = new Map<string, string>();
+  if (value.resources.toState !== undefined) {
+    k.set(value.resources.toState[0], ctx.stateMap.get(value.resources.toState[1] as StateKey<K>)!);
+  }
   for (const [key, val] of e) {
+    if (key === 'toState') continue;
     let v = emitValue(ctx, val);
     if (IS_VAR_RE.test(v))
       k.set(key, v)

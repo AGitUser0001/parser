@@ -616,3 +616,5 @@ export function graph_to_input<K extends StateName>(graph: Graph<K>): States<Sta
   }
   return states as States<StateKey<K>>;
 }
+
+export type GraphStates<T extends Graph<StateName>> = T extends Graph<infer K> ? K : never;

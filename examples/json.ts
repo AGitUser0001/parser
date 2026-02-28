@@ -1,4 +1,6 @@
-import { input_to_graph, graph_to_input, build, transformCSTRoot, toTypedAST, Semantics, type AllASTNodes } from 'parser';
+import { input_to_graph, graph_to_input, build, transformCSTRoot, toTypedAST, Semantics, type AllASTNodes, emit, ParserFn, type GraphStates } from 'parser';
+import util from 'node:util';
+import { readFile, writeFile } from 'node:fs/promises';
 
 // -----------------------------------------------------------------------
 
@@ -9,6 +11,8 @@ const RUN_N = 10;
 const RUN_BENCHMARK = true;
 const LOG_ASTIR = false;
 const LOG_DATA = false;
+const RUN_EMIT = true;
+const WRITE_EMIT = true;
 
 // const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
 const input = await readFile('./json_sample1k.json', 'utf-8');
@@ -53,9 +57,6 @@ const jsonStates = {
 } as const;
 const jsonGraph = input_to_graph<keyof typeof jsonStates>(jsonStates);
 //#endregion
-
-import util from 'node:util';
-import { readFile } from 'node:fs/promises';
 
 if (LOG_GRAPH) {
   console.log(util.inspect(jsonGraph, {
@@ -137,9 +138,26 @@ if (RUN_NATIVE) {
   console.timeEnd('Native');
 }
 
-console.time('build');
-let parseJSON = build(jsonGraph);
-console.timeEnd('build');
+let parseJSON: ParserFn<GraphStates<typeof jsonGraph>>;
+if (WRITE_EMIT) {
+  console.time('build');
+  const parser = build(jsonGraph, true);
+  console.timeEnd('build');
+  console.time('emit');
+  const emitted = emit(parser);
+  console.timeEnd('emit');
+  await writeFile('./json_parser.js', emitted);
+}
+if (!RUN_EMIT) {
+  console.time('build');
+  parseJSON = build(jsonGraph);
+  console.timeEnd('build');
+} else {
+  console.time('import');
+  let s = './json_parser.js';
+  parseJSON = (await import(s)).parse;
+  console.timeEnd('import');
+}
 
 import Benchmark from 'benchmark';
 
