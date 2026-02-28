@@ -1,6 +1,9 @@
 import { input_to_graph, graph_to_input, build, transformCSTRoot, toTypedAST, Semantics, type AllASTNodes, emit, ParserFn, type GraphStates, tokenize } from 'parser';
-import util from 'node:util';
-import { readFile, writeFile } from 'node:fs/promises';
+let util, readFile, writeFile;
+if (typeof global !== 'undefined') {
+  util = await import('node:util');
+  ({ readFile, writeFile } = await import('node:fs/promises'));
+}
 
 // -----------------------------------------------------------------------
 
@@ -16,7 +19,7 @@ const WRITE_EMIT = false;
 const EMIT_PATH = './json_parser.js';
 
 const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/256KB.json')).text();
-// const input = await readFile('./json_sample1k.json', 'utf-8');
+// const input = readFile ? await readFile('./json_sample1k.json', 'utf-8') : await (await fetch('./json_sample1k.json')).text();
 console.log('Input: ', input.length);
 
 // -----------------------------------------------------------------------
@@ -59,7 +62,7 @@ const jsonStates = {
 const jsonGraph = input_to_graph<keyof typeof jsonStates>(jsonStates);
 //#endregion
 
-if (LOG_GRAPH) {
+if (LOG_GRAPH && util) {
   console.log(util.inspect(jsonGraph, {
     depth: 10
   }));
@@ -140,7 +143,7 @@ if (RUN_NATIVE) {
 }
 
 let parseJSON: ParserFn<GraphStates<typeof jsonGraph>>;
-if (WRITE_EMIT) {
+if (WRITE_EMIT && writeFile) {
   console.time('build');
   const parser = build(jsonGraph, true);
   console.timeEnd('build');
@@ -161,7 +164,6 @@ if (!RUN_EMIT) {
 }
 
 import Benchmark from 'benchmark';
-import { test } from 'node:test';
 
 const suite = new Benchmark.Suite('json-test');
 
