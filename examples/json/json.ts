@@ -11,18 +11,19 @@ const RUN_NATIVE = true;
 const LOG_GRAPH = false;
 const LOG_NUMBERS = true;
 const RUN_N = 10;
-const RUN_BENCHMARK = true;
+const RUN_BENCHMARK = false;
 const LOG_ASTIR = false;
 const LOG_DATA = false;
 const RUN_EMIT = true;
 const WRITE_EMIT = true;
 const EMIT_PATH = './json_parser.js';
 
-const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/256KB.json')).text();
+const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
 // const input = readFile ? await readFile('./json_sample1k.json', 'utf-8') : await (await fetch('./json_sample1k.json')).text();
-console.log('Input: ', input.length);
 
 // -----------------------------------------------------------------------
+if (LOG_NUMBERS)
+  console.log('Input: ', input.length);
 
 //#region define
 const jsonStates = {
@@ -191,10 +192,19 @@ suite.on('cycle', function (event: import('benchmark').Event) {
 });
 
 if (RUN_N > 0) {
-  console.time(String(RUN_N));
+  console.time(String(RUN_N + ' parses'));
   for (let i = 0; i < RUN_N; i++)
     parseJSON(input, 'Entry');
-  console.timeEnd(String(RUN_N));
+  console.timeEnd(String(RUN_N + ' parses'));
+
+  console.time(String(RUN_N + ' parse + ast + semantics'));
+  for (let i = 0; i < RUN_N; i++) {
+    const result = parseJSON(input, 'Entry');
+    const astIR = transformCSTRoot(result);
+    const typedAST = toTypedAST(astIR);
+    jsonSemantics.evaluate(typedAST);
+  }
+  console.timeEnd(String(RUN_N + ' parse + ast + semantics'));
 }
 
 if (RUN_BENCHMARK)
