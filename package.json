@@ -30,5 +30,8 @@
     "@typescript/native-preview": "^7.0.0-dev.20260222.1",
     "benchmark": "^2.1.4",
     "tsx": "^4.21.0"
-  }
+  },
+  "files": [
+    "dist"
+  ]
 }
