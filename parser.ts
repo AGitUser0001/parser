@@ -57,7 +57,7 @@ export function improves(next: Result, prev: Result): boolean {
 export function improves_error(next: Result, prev: Result): boolean {
   return !prev.ok && !next.ok && (next.pos >= prev.pos);
 }
-export function skipWs(rc: RuntimeCtx<StateName>, pos: number): [MatcherValue | null, number] {
+export function skipWs(rc: RuntimeCtx<StateName>, pos: number): [ws: MatcherValue | null, pos: number] {
   rc.ws.lastIndex = pos;
   const match = rc.ws.exec(rc.input);
   if (match) {
