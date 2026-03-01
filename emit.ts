@@ -2,7 +2,7 @@ import type { StateName, StateKey } from "./graph.js";
 import type { Parser, FnT } from "./parser.js";
 
 type Func = (...args: any[]) => any;
-type O<T extends Func> = Fn<T> | string | number | boolean | RegExp | O<T>[] | Set<O<T>> | Map<O<T>, O<T>>;
+type O<T extends Func> = Fn<T> | string | bigint | number | boolean | undefined | null | RegExp | O<T>[] | Set<O<T>> | Map<O<T>, O<T>>;
 export type Resources<T extends Func> = {
   [key: string]: O<T>;
 } & { toState?: [string, StateName] };
@@ -78,10 +78,19 @@ function emitValue<K extends StateName>(
   ctx: EmitCtx<K>,
   value: O<FnT<K, unknown>>
 ): string {
-  if (typeof value === 'function')
-    return emitFn(ctx, value);
-  if (typeof value !== 'object')
-    return JSON.stringify(value);
+  switch (typeof value) {
+    case 'string': return JSON.stringify(value);
+    case 'bigint': return value.toString() + 'n';
+    case 'number':
+    case 'boolean':
+    case 'undefined':
+      return String(value);
+    case 'function':
+      return emitFn(ctx, value);
+    case 'symbol':
+      throw new TypeError(`Cannot serialize symbols!`, { cause: value });
+  }
+  if (value === null) return 'null';
   if (value instanceof Map) {
     return `new Map(${emitValue(ctx, [...value.entries()])})`;
   }
@@ -89,17 +98,16 @@ function emitValue<K extends StateName>(
     return `new Set(${emitValue(ctx, [...value.values()])})`;
   }
   if (Array.isArray(value)) {
-    return `[${value.map(v => emitValue(ctx, v)).join(', ')
-      }]`;
+    return `[${value.map(v => emitValue(ctx, v)).join(',')}]`;
   }
   if (value instanceof RegExp)
     return value.toString();
   const _exhaustive: never = value;
-  throw new TypeError(`Internal error: unknown value`, { cause: value });
+  throw new TypeError(`Internal error: unknown value type`, { cause: value });
 }
 
 const VAR_RE = /("(?:\\.|[^"])*"|'(?:\\.|[^'])*'|`(?:\\.|[^`])*`|\/\*[\s\S]*?\*\/|\/\/.*)|((?<!\.\??\s*)\b[\p{ID_Start}_$][\p{ID_Continue}$\u200c\u200d]*\b)/ug;
-const IS_VAR_RE = /^[$_\p{ID_Start}](?:[$_\u200C\u200D\p{ID_Continue}])*$/u;
+const IS_SIMPLE_RE = /^[$_\p{ID_Start}](?:[$_\u200C\u200D\p{ID_Continue}])*$|^['"\d]/u;
 function emitFn<K extends StateName>(
   ctx: EmitCtx<K>,
   value: Fn<Func, FnT<K, unknown>>
@@ -116,7 +124,7 @@ function emitFn<K extends StateName>(
   for (const [key, val] of e) {
     if (key === 'toState') continue;
     let v = emitValue(ctx, val);
-    if (IS_VAR_RE.test(v))
+    if (IS_SIMPLE_RE.test(v))
       k.set(key, v)
     else {
       const nK = `${ctx.name()}${key}` as const;
