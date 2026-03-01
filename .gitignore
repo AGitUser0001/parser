@@ -3,3 +3,5 @@ dist/
 
 *.cpuprofile
 turbo-*
+
+*.tgz
