@@ -80,11 +80,18 @@ export function transformCST(result: Result, out: ASTResult[], sourceCon: ASTSou
 
     case 'iteration':
       {
-        const results: ASTResult[][] = Array(result.value.length);
-        for (let i = 0; i < result.value.length; i++) {
+        let results: ASTResult[][];
+        if (!Array.isArray(result.value)) {
           const newOut: ASTResult[] = [];
-          len += transformCST(result.value[i], newOut, sourceCon);
-          results[i] = newOut;
+          len += transformCST(result.value, newOut, sourceCon);
+          results = [newOut];
+        } else {
+          results = Array(result.value.length);
+          for (let i = 0; i < result.value.length; i++) {
+            const newOut: ASTResult[] = [];
+            len += transformCST(result.value[i], newOut, sourceCon);
+            results[i] = newOut;
+          }
         }
         out.push({
           type: 'iteration',
@@ -97,7 +104,9 @@ export function transformCST(result: Result, out: ASTResult[], sourceCon: ASTSou
       break;
 
     case 'sequence':
-      for (let i = 0; i < result.value.length; i++) {
+      if (!Array.isArray(result.value)) {
+        len += transformCST(result.value, out, sourceCon);
+      } else for (let i = 0; i < result.value.length; i++) {
         len += transformCST(result.value[i], out, sourceCon);
       }
       break;

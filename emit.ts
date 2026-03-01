@@ -1,5 +1,5 @@
 import type { StateName, StateKey } from "./graph.js";
-import { type Parser, type FnT,skipWs,improves,improves_error } from "./parser.js";
+import { type Parser, type FnT, skipWs, improves, improves_error } from "./parser.js";
 
 type Func = (...args: any[]) => any;
 type O<T extends Func> = Fn<T> | string | bigint | number | boolean | undefined | null | RegExp | O<T>[] | Set<O<T>> | Map<O<T>, O<T>>;

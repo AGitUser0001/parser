@@ -2,6 +2,8 @@ node_modules/
 dist/
 
 *.cpuprofile
+*.heapprofile
+*.heapsnapshot
 turbo-*
 
 *.tgz

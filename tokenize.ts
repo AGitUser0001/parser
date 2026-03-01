@@ -81,7 +81,9 @@ export function tokenize(root: Result): Token[] {
 
       case 'sequence':
       case 'iteration':
-        for (const child of node.value)
+        if (!Array.isArray(node.value))
+          len += walk(node.value);
+        else for (const child of node.value)
           len += walk(child);
         break;
 
