@@ -37,8 +37,8 @@ export function emit<K extends StateName>(
       return `$${base36}$`;
     }
   }
-  const { states, allStates } = parser.resources;
-  for (const stateKey of allStates) {
+  const { states } = parser.resources;
+  for (const stateKey of states.keys()) {
     let nK = `State${ctx.name()}${stateKey.replaceAll(INVALID_RE, '')}`;
     ctx.stateMap.set(stateKey, nK);
     ctx.vars.set(nK, `() => { throw new Error("Internal error: state definition missing."); }`);
