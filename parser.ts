@@ -1,4 +1,4 @@
-import { Graph, isGeneric, type GraphToken, Choice, Sequence, type GraphCollection, type StandaloneOperator, type StateKey, type StateName, type IterationOperator, type Generic, OP_MAP } from './graph.js';
+import { Graph, isGeneric, type GraphToken, Choice, Sequence, type GraphCollection, type StandaloneOperator, type StateKey, type StateName, type IterationOperator, type Generic } from './graph.js';
 import type { SccId } from './scc.js';
 import type { MapView } from './shared.js';
 import { logic, type Resources, type Fn } from './emit.js';
@@ -239,7 +239,7 @@ function buildSequence<K extends StateName>(
   seq: Sequence<K>,
   lexical: boolean
 ): RV<K> {
-  const [_opMask, body] = seq.operators;
+  const { body } = seq.segments;
   lexical = lexScope(ctx, seq, lexical);
   let r: RV<K>;
   if (body.length === 1) {
@@ -277,7 +277,7 @@ function buildChoice<K extends StateName>(
   choice: Choice<K>,
   lexical: boolean
 ): RV<K> {
-  const [opMask, body] = choice.operators;
+  const { ops, body } = choice.segments;
   lexical = lexScope(ctx, choice, lexical);
   let r: RV<K>;
   if (body.length === 1) {
@@ -295,7 +295,7 @@ function buildChoice<K extends StateName>(
       const x = buildTerm(ctx, term, lexical);
       ev.push(x);
     }
-    const hasOrderedChoice = opMask & OP_MAP['/'];
+    const hasOrderedChoice = ops.has('/');
     if (hasOrderedChoice)
       r = ctx.logic((rc, pos) => {
         let error: Result = { type: 'none', ok: false, pos, value: null };
@@ -347,10 +347,10 @@ function buildRegex<K extends StateName>(ctx: ParserCtx<K>, re: RegExp): RV<K> {
   }, { re });
 }
 
-export type Operators<K extends StateName> = readonly [
-  opMask: number,
-  body: readonly (Exclude<GraphToken<K>, StandaloneOperator> | Generic)[]
-];
+export type Segments<K extends StateName> = {
+  readonly ops: ReadonlySet<StandaloneOperator>,
+  readonly body: readonly (Exclude<GraphToken<K>, StandaloneOperator> | Generic)[]
+};
 
 function throwOnGeneric<K extends StateName>(x: Exclude<GraphToken<K>, StandaloneOperator> | Generic):
   asserts x is Exclude<GraphToken<K>, StandaloneOperator> {
@@ -366,10 +366,10 @@ function lexScope<K extends StateName>(
   data: GraphCollection<K>,
   lexical: boolean
 ): boolean {
-  const [opMask, _body] = data.operators;
+  const { ops } = data.segments;
 
-  const hasLex = opMask & OP_MAP['#'];
-  const hasSyn = opMask & OP_MAP['%'];
+  const hasLex = ops.has('#');
+  const hasSyn = ops.has('%');
 
   if (hasLex) lexical = true;
   else if (hasSyn) lexical = false;
@@ -383,15 +383,15 @@ function withOperators<K extends StateName>(
   r: RV<K>,
   lexical: boolean
 ): RV<K> {
-  const [opMask, _body] = data.operators;
+  const { ops } = data.segments;
 
-  const hasPosLA = opMask & OP_MAP['&'];
-  const hasNegLA = opMask & OP_MAP['!'];
-  const hasStar = opMask & OP_MAP['*'];
-  const hasPlus = opMask & OP_MAP['+'];
-  const hasOpt = opMask & OP_MAP['?'];
-  const hasAt = opMask & OP_MAP['@'];
-  const hasRewind = opMask & OP_MAP['$'];
+  const hasPosLA = ops.has('&');
+  const hasNegLA = ops.has('!');
+  const hasStar = ops.has('*');
+  const hasPlus = ops.has('+');
+  const hasOpt = ops.has('?');
+  const hasAt = ops.has('@');
+  const hasRewind = ops.has('$');
 
   if (hasAt) {
     const x = r;

@@ -1,4 +1,4 @@
-import { Graph, Choice, Sequence, type StateKey, type StateName, type StandaloneOperator, isGeneric,OP_MAP } from './graph.js';
+import { Graph, Choice, Sequence, type StateKey, type StateName, type StandaloneOperator, isGeneric } from './graph.js';
 
 export type DepGraph<K extends StateName> = Map<StateKey<K>, Set<StateKey<K>>>;
 
@@ -14,10 +14,10 @@ export function prefixDeps<K extends StateName>(
   graph: Graph<K>,
   data: Sequence<K>
 ): { nullable: boolean; deps: StateKey<K>[]; } {
-  const [opMask, body] = data.operators;
+  const { ops, body } = data.segments;
   let nullable = false;
   for (const op of nullableOperators)
-    if (opMask & OP_MAP[op])
+    if (ops.has(op))
       nullable = true;
 
   const output: StateKey<K>[] = [];
@@ -52,11 +52,11 @@ export function prefixDepsChoice<K extends StateName>(
   graph: Graph<K>,
   data: Choice<K>
 ): { nullable: boolean; deps: StateKey<K>[]; } {
-  const [opMask, body] = data.operators;
+  const { ops, body } = data.segments;
 
   let nullable = false;
   for (const op of nullableOperators)
-    if (opMask & OP_MAP[op])
+    if (ops.has(op))
       nullable = true;
 
   let deps: StateKey<K>[] = [];
@@ -104,9 +104,9 @@ export function isSolid<K extends StateName>(
   data: Sequence<K> | Choice<K>,
   seen: string[]
 ) {
-  const [opMask, body] = data.operators;
+  const { ops, body } = data.segments;
   for (const op of nullableOperators)
-    if (opMask & OP_MAP[op])
+    if (ops.has(op))
       return false;
   const isChoice = data instanceof Choice;
   let v = true;

@@ -1,6 +1,6 @@
 import { computeSCCInfo, type SccId } from './scc.js';
-import { customInspectSymbol, freeze, MapView } from './shared.js';
-import { type Operators } from './parser.js';
+import { customInspectSymbol, freeze, MapView, SetView } from './shared.js';
+import { type Segments } from './parser.js';
 
 export type IterationOperator = '*' | '+' | '?' | '@';
 const iterationOperatorSet: Set<IterationOperator> & { has(k: string): k is IterationOperator; } =
@@ -91,11 +91,11 @@ export class Choice<K extends StateName> extends Array<SimpleToken<K> | Sequence
     if (v !== null) return v;
     return this.#arity = calculateArity_Choice(this);
   }
-  #operators: Operators<K> | null = null;
-  get operators(): Operators<K> {
-    const v = this.#operators;
+  #segments: Segments<K> | null = null;
+  get segments(): Segments<K> {
+    const v = this.#segments;
     if (v) return v;
-    return this.#operators = getOperators(this);
+    return this.#segments = calculateSegments(this);
   }
   #generic: boolean | null = null;
   get generic() {
@@ -115,11 +115,11 @@ export class Sequence<K extends StateName> extends Array<SimpleToken<K> | Choice
     if (v !== null) return v;
     return this.#arity = calculateArity_Sequence(this);
   }
-  #operators: Operators<K> | null = null;
-  get operators(): Operators<K> {
-    const v = this.#operators;
+  #segments: Segments<K> | null = null;
+  get segments(): Segments<K> {
+    const v = this.#segments;
     if (v) return v;
-    return this.#operators = getOperators(this);
+    return this.#segments = calculateSegments(this);
   }
   #generic: boolean | null = null;
   get generic() {
@@ -143,7 +143,7 @@ function findGeneric<K extends StateName>(node: Sequence<K> | Choice<K>) {
 export interface TokenCollection<K extends StateName> extends ReadonlyArray<InputToken<K>> { }
 export interface GraphCollection<K extends StateName> extends Array<GraphToken<K>> {
   arity: number;
-  operators: Operators<K>;
+  segments: Segments<K>;
   generic: boolean;
 }
 type GraphMap<K extends StateName> = Map<StateKey<K>, Sequence<K>>;
@@ -398,37 +398,24 @@ function finalizeGraph<K extends StateName>(
 }
 
 function finalizeNode<K extends StateName>(
-  node: GraphToken<K>,
+  node: Exclude<GraphToken<K>, StandaloneOperator>,
   graph: Graph<K>,
   insideIteration = false
 ): void {
-  if (isOperator(node))
-    return;
-
   if (node instanceof Sequence || node instanceof Choice) {
     node.arity;
-    const operators = new Set<StandaloneOperator>();
+    const { ops, body } = node.segments;
 
-    for (const item of node) {
-      if (isOperator(item)) {
-        if (isGeneric(item)) {
-          // skip
-        } else {
-          operators.add(item);
-        }
-      }
-    }
-
-    const plookahead = operators.has('&');
-    const nlookahead = operators.has('!');
+    const plookahead = ops.has('&');
+    const nlookahead = ops.has('!');
     if (plookahead && nlookahead)
       throw new Error(
         `Cannot have both positive and negative lookahead`,
         { cause: { node, graph } }
       );
-    const repetition0 = operators.has('*');
-    const repetition1 = operators.has('+');
-    const optional = operators.has('?');
+    const repetition0 = ops.has('*');
+    const repetition1 = ops.has('+');
+    const optional = ops.has('?');
 
     if (
       (repetition0 && repetition1) ||
@@ -440,15 +427,15 @@ function finalizeNode<K extends StateName>(
         { cause: { node, graph } }
       );
 
-    const at = operators.has('@');
-    const orderedChoice = operators.has('/');
+    const at = ops.has('@');
+    const orderedChoice = ops.has('/');
     if (orderedChoice && !(node instanceof Choice))
       throw new Error(
         `Ordered choice operator '/' can only be applied to Choice`,
         { cause: { node, graph } }
       );
 
-    const rewind = operators.has('$');
+    const rewind = ops.has('$');
     const lookahead = plookahead || nlookahead;
     const repetition = repetition0 || repetition1 || optional;
     if (at && repetition)
@@ -458,15 +445,16 @@ function finalizeNode<K extends StateName>(
       );
 
     const iteration = at || repetition;
-    const lex = operators.has('#');
-    const syn = operators.has('%');
+    const lex = ops.has('#');
+    const syn = ops.has('%');
     if (lex && syn)
       throw new Error(
         `Cannot have both lexical and syntactic operator`,
         { cause: { node, graph } }
       );
 
-    for (const item of node) {
+    for (const item of body) {
+      if (isGeneric(item)) continue;
       finalizeNode(item, graph, insideIteration || iteration);
     }
     freeze(node);
@@ -565,25 +553,7 @@ function calculateArity_Choice(
   return expected ?? 0;
 }
 
-export const OP_MAP: Record<StandaloneOperator, number> = Object.create(null);
-{
-  let bit = 1;
-  for (const op of standaloneOperatorSet) {
-    OP_MAP[op] = bit;
-    bit <<= 1;
-  }
-  freeze(OP_MAP);
-}
-
-function getBitmask(ops: ReadonlySet<StandaloneOperator>) {
-  let mask = 0;
-  for (const op of ops) {
-    mask |= (OP_MAP[op]);
-  }
-  return mask;
-}
-
-function getOperators<K extends StateName>(xs: GraphCollection<K>): Operators<K> {
+function calculateSegments<K extends StateName>(xs: GraphCollection<K>): Segments<K> {
   const ops = new Set<StandaloneOperator>();
   const body: (Exclude<GraphToken<K>, StandaloneOperator> | Generic)[] = [];
 
@@ -598,10 +568,10 @@ function getOperators<K extends StateName>(xs: GraphCollection<K>): Operators<K>
     }
   }
 
-  return freeze([
-    getBitmask(ops),
-    freeze(body)
-  ]);
+  return freeze({
+    ops: new SetView(ops),
+    body: freeze(body)
+  });
 }
 
 export function graph_to_input<K extends StateName>(graph: Graph<K>): States<StateKey<K>> {
