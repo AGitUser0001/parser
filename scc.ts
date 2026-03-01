@@ -1,8 +1,8 @@
 import { Graph, Choice, Sequence, type StateKey, type StateName, type StandaloneOperator, isGeneric } from './graph.js';
 
-export type DepGraph<K extends StateName> = Map<StateKey<K>, Set<StateKey<K>>>;
+type DepGraph<K extends StateName> = Map<StateKey<K>, Set<StateKey<K>>>;
 
-export function collectPrefixDeps<K extends StateName>(
+function collectPrefixDeps<K extends StateName>(
   graph: Graph<K>,
   data: Sequence<K>
 ): Set<StateKey<K>> {
@@ -10,7 +10,7 @@ export function collectPrefixDeps<K extends StateName>(
   return new Set(deps);
 }
 
-export function prefixDeps<K extends StateName>(
+function prefixDeps<K extends StateName>(
   graph: Graph<K>,
   data: Sequence<K>
 ): { nullable: boolean; deps: StateKey<K>[]; } {
@@ -48,7 +48,7 @@ export function prefixDeps<K extends StateName>(
   return { nullable: true, deps: output };
 }
 
-export function prefixDepsChoice<K extends StateName>(
+function prefixDepsChoice<K extends StateName>(
   graph: Graph<K>,
   data: Choice<K>
 ): { nullable: boolean; deps: StateKey<K>[]; } {
@@ -99,7 +99,7 @@ export function prefixDepsChoice<K extends StateName>(
 const nullableOperators = new Set<StandaloneOperator>([
   '*', '?', '&', '!'
 ]);
-export function isSolid<K extends StateName>(
+function isSolid<K extends StateName>(
   graph: Graph<K>,
   data: Sequence<K> | Choice<K>,
   seen: string[]
@@ -130,7 +130,7 @@ export function isSolid<K extends StateName>(
   return false;
 }
 
-export function buildDependencyGraph<K extends StateName>(
+function buildDependencyGraph<K extends StateName>(
   graph: Graph<K>
 ): DepGraph<K> {
   const deps: DepGraph<K> = new Map();
@@ -145,7 +145,7 @@ export function buildDependencyGraph<K extends StateName>(
 
 export type SccId = number;
 
-export function computeSCCs<K extends StateName>(
+function computeSCCs<K extends StateName>(
   depGraph: DepGraph<K>
 ): SCCInfo<K> {
   let index = 0;
