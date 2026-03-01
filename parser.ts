@@ -672,7 +672,7 @@ export function build<K extends StateName>(
       throw new Error(`Cannot start at unknown state: ${start}`, { cause: { input, start } });
 
     const memos = new Map<StateKey<K>, Map<number, MemoEntry>>();
-    for (const stateLabel of allStates) {
+    for (const stateLabel of states.keys()) {
       memos.set(stateLabel, new Map);
     }
 
