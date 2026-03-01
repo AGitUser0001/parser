@@ -24,7 +24,7 @@ interface EmitCtx<K extends StateName> {
   name(): `$${string}$`;
 };
 
-const INVALID_RE = /[^\p{ID_Continue}$\u200c\u200d]+/ug;
+const INVALID_RE = /[^$_\p{ID_Start}\p{ID_Continue}\u200c\u200d]+/ug;
 export function emit<K extends StateName>(
   parser: Parser<K>,
   annotations: boolean = false
