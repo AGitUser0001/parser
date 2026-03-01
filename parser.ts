@@ -50,13 +50,23 @@ interface RuntimeCtx<K extends StateName> {
   readonly ws: RegExp;
 };
 
-function improves(next: Result, prev: Result): boolean {
+export function improves(next: Result, prev: Result): boolean {
   return next.ok && (!prev.ok || next.pos > prev.pos);
 }
 
-function improves_error(next: Result, prev: Result): boolean {
+export function improves_error(next: Result, prev: Result): boolean {
   return !prev.ok && !next.ok && (next.pos >= prev.pos);
 }
+export function skipWs(rc: RuntimeCtx<StateName>, pos: number): [MatcherValue | null, number] {
+  rc.ws.lastIndex = pos;
+  const match = rc.ws.exec(rc.input);
+  if (match) {
+    let ws = match[0];
+    pos += ws.length;
+    return [ws, pos];
+  }
+  return [null, pos];
+};
 
 export type FnT<K extends StateName, R = Result> = (rc: RuntimeCtx<K>, pos: number) => R;
 export type RV<K extends StateName> = Fn<FnT<K>, FnT<K>>;
@@ -177,17 +187,6 @@ function evalStateBody<K extends StateName>(
 
   return buildSequence(ctx, seq, lexical);
 }
-
-function skipWs(rc: RuntimeCtx<StateName>, pos: number): [MatcherValue | null, number] {
-  rc.ws.lastIndex = pos;
-  const match = rc.ws.exec(rc.input);
-  if (match) {
-    let ws = match[0];
-    pos += ws.length;
-    return [ws, pos];
-  }
-  return [null, pos];
-};
 
 function buildTerm<K extends StateName>(
   ctx: ParserCtx<K>,

@@ -1,5 +1,5 @@
 import type { StateName, StateKey } from "./graph.js";
-import type { Parser, FnT } from "./parser.js";
+import { type Parser, type FnT,skipWs,improves,improves_error } from "./parser.js";
 
 type Func = (...args: any[]) => any;
 type O<T extends Func> = Fn<T> | string | bigint | number | boolean | undefined | null | RegExp | O<T>[] | Set<O<T>> | Map<O<T>, O<T>>;
@@ -53,23 +53,15 @@ export function emit<K extends StateName>(
   for (const [name, text] of ctx.vars) {
     code += `const ${name} = ${text};\n`;
   }
-  code += `function skipWs(rc, pos) {
-  rc.ws.lastIndex = pos;
-  const match = rc.ws.exec(rc.input);
-  if (match) {
-    let ws = match[0];
-    pos += ws.length;
-    return [ws, pos];
-  }
-  return [null, pos];
-};
-function improves(next, prev) {
-  return next.ok && (!prev.ok || next.pos > prev.pos);
-}
-function improves_error(next, prev) {
-  return !prev.ok && !next.ok && (next.pos >= prev.pos);
-}
-`;
+  let fns = [
+    improves,
+    improves_error,
+    skipWs,
+  ];
+  let fnv = fns
+    .map(fn => fn.toString() + '\n')
+    .join('');
+  code += fnv;
   code += `export const parse = ${parserv};`;
   return code;
 }
@@ -107,7 +99,7 @@ function emitValue<K extends StateName>(
 }
 
 const VAR_RE = /("(?:\\.|[^"])*"|'(?:\\.|[^'])*'|`(?:\\.|[^`])*`|\/\*[\s\S]*?\*\/|\/\/.*)|((?<!\.\??\s*)\b[\p{ID_Start}_$][\p{ID_Continue}$\u200c\u200d]*\b)/ug;
-const IS_SIMPLE_RE = /^[$_\p{ID_Start}](?:[$_\u200C\u200D\p{ID_Continue}])*$|^['"\d]/u;
+const IS_SIMPLE_RE = /^[$_\p{ID_Start}](?:[$_\u200C\u200D\p{ID_Continue}])*$|^['"\d\-]/u;
 function emitFn<K extends StateName>(
   ctx: EmitCtx<K>,
   value: Fn<Func, FnT<K, unknown>>
