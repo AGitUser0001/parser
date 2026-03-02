@@ -133,6 +133,27 @@ function emitFn<K extends StateName>(
   return start + transformCode(body, k, ctx.annotations) + end;
 }
 
+const isObjectLiteralPosition = (prev: string | null): boolean => {
+  return (
+    prev === '=' ||
+    prev === '(' ||
+    prev === '[' ||
+    prev === ',' ||
+    prev === ':' ||
+    prev === '?' ||
+    prev === '!' ||
+    prev === '${' ||
+    (!!prev && isIdStart(prev)) ||
+    (!!prev && isIdContinue(prev))
+  );
+}
+
+const isIdStart = (ch: string) =>
+  /[$_\p{ID_Start}]/u.test(ch);
+
+const isIdContinue = (ch: string) =>
+  /[$\u200C\u200D_\p{ID_Continue}]/u.test(ch);
+
 function transformCode(
   code: string,
   kmap: Map<string, string>,
@@ -141,27 +162,7 @@ function transformCode(
   let i = 0;
   let out = '';
   type Scope = { type: 'stmt', expr: boolean } | { type: 'block' | 'templExpr' | 'template' | 'paren' | 'bracket' } | { type: 'object'; expect: 'key' | 'value' };
-  const isObjectLiteralPosition = (prev: string | null): boolean => {
-    return (
-      prev === '=' ||
-      prev === '(' ||
-      prev === '[' ||
-      prev === ',' ||
-      prev === ':' ||
-      prev === '?' ||
-      prev === '!' ||
-      prev === '${' ||
-      (!!prev && isIdStart(prev)) ||
-      (!!prev && isIdContinue(prev))
-    );
-  }
   const scopes: Scope[] = [{ type: 'stmt', expr: false }];
-
-  const isIdStart = (ch: string) =>
-    /[$_\p{ID_Start}]/u.test(ch);
-
-  const isIdContinue = (ch: string) =>
-    /[$\u200C\u200D_\p{ID_Continue}]/u.test(ch);
 
   const peek = (n = 0) => code[i + n];
 
