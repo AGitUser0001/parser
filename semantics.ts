@@ -1,27 +1,27 @@
-import { StateNode, IterationNode, TerminalNode, type AnyASTNode, RootNode } from './ast.js';
+import { StateNode, IterationNode, TerminalNode, type ParseTreeNode, RootNode } from './nodes.js';
 import { type StateName, type StateKey, Graph } from './graph.js';
 import { MapView, type DeepReplace, type UnionToIntersection, type Display } from './shared.js';
 
-type AllASTNodes_ = UnionToIntersection<AnyASTNode>;
-export type AllASTNodes = Display<
-  DeepReplace<AllASTNodes_,
-    | [AnyASTNode | null, AllASTNodes]
-    | [AnyASTNode[], AllASTNodes[]] | [AnyASTNode[][], AllASTNodes[][]]
+type AllParseNodes_ = UnionToIntersection<ParseTreeNode>;
+export type ParseNode = Display<
+  DeepReplace<AllParseNodes_,
+    | [ParseTreeNode | null, ParseNode]
+    | [ParseTreeNode[], ParseNode[]] | [ParseTreeNode[][], ParseNode[][]]
   >
 >;
 export interface SemanticsThis<K extends StateName, R, C> {
-  (node: AnyASTNode): R;
-  with(node: AnyASTNode, ctx: C): R;
+  (node: ParseTreeNode): R;
+  with(node: ParseTreeNode, ctx: C): R;
   use: {
-    (key: SemanticsKey<K>, ...args: AnyASTNode[]): R;
-    with(key: SemanticsKey<K>, ctx: C, ...args: AnyASTNode[]): R;
+    (key: SemanticsKey<K>, ...args: ParseTreeNode[]): R;
+    with(key: SemanticsKey<K>, ctx: C, ...args: ParseTreeNode[]): R;
   };
-  readonly node: AllASTNodes;
+  readonly node: ParseNode;
   readonly ctx: C;
 };
 
 export type SemanticFn<K extends StateName, R, C> =
-  (this: SemanticsThis<K, R, C>, ...args: AllASTNodes[]) => R;
+  (this: SemanticsThis<K, R, C>, ...args: ParseNode[]) => R;
 
 export type SpecialKey = '#iter' | '#terminal' | '#root';
 
@@ -32,7 +32,7 @@ export type SemanticsSpec<K extends StateName, R, C> = {
 };
 
 export class Semantics<K extends StateName, R = any, C = void> extends MapView<SemanticsKey<K>, SemanticFn<K, R, C>> {
-  #memo?: WeakMap<AnyASTNode, R>;
+  #memo?: WeakMap<ParseTreeNode, R>;
   constructor(
     graph: Graph<K>,
     spec: SemanticsSpec<K, R, C>,
@@ -154,7 +154,7 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
     return result;
   }
 
-  evaluate(node: AnyASTNode, ctx: C): R {
+  evaluate(node: ParseTreeNode, ctx: C): R {
     return this.#descend(node, ctx);
   }
 
@@ -196,7 +196,7 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
     return this.#run(node, fn, ctx);
   }
 
-  #use(node: AnyASTNode, key: SemanticsKey<K>, ctx: C, args: AnyASTNode[]): R {
+  #use(node: ParseTreeNode, key: SemanticsKey<K>, ctx: C, args: ParseTreeNode[]): R {
     let fn = this.get(key);
     while (!fn && key.includes('@')) {
       const lastAt = key.lastIndexOf('@');
@@ -257,23 +257,23 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
     return this.#run(node, fn, ctx);
   }
 
-  #run(node: AnyASTNode, fn: SemanticFn<K, R, C>, ctx: C, data = node.children) {
-    const self = (node: AnyASTNode) => this.#descend(node, ctx);
-    self.with = (node: AnyASTNode, ctx: C) => this.#descend(node, ctx);
+  #run(node: ParseTreeNode, fn: SemanticFn<K, R, C>, ctx: C, data = node.children) {
+    const self = (node: ParseTreeNode) => this.#descend(node, ctx);
+    self.with = (node: ParseTreeNode, ctx: C) => this.#descend(node, ctx);
 
-    const use = (key: SemanticsKey<K>, ...args: AnyASTNode[]) =>
+    const use = (key: SemanticsKey<K>, ...args: ParseTreeNode[]) =>
       this.#use(node, key, ctx, args);
-    use.with = (key: SemanticsKey<K>, ctx: C, ...args: AnyASTNode[]) =>
+    use.with = (key: SemanticsKey<K>, ctx: C, ...args: ParseTreeNode[]) =>
       this.#use(node, key, ctx, args);
 
     self.use = use;
     self.ctx = ctx;
-    self.node = node as AllASTNodes;
+    self.node = node as ParseNode;
 
-    return fn.apply(self, data as AllASTNodes[]);
+    return fn.apply(self, data as ParseNode[]);
   }
 
-  #descend(node: AnyASTNode, ctx: C): R {
+  #descend(node: ParseTreeNode, ctx: C): R {
     const memo = this.#memo;
     if (memo?.has(node))
       return memo.get(node)!;

@@ -1,4 +1,4 @@
-import { input_to_graph, graph_to_input, build, transformCSTRoot, toTypedAST, Semantics, type AllASTNodes, emit, type ParserFn, type GraphStates, tokenize } from '../../dist/index.js';
+import { input_to_graph, graph_to_input, build, toParseTree, Semantics, type ParseNode, emit, type ParserFn, type GraphStates, tokenize } from '../../dist/index.js';
 let util, readFile, writeFile;
 if (typeof global !== 'undefined') {
   util = await import('node:util');
@@ -11,15 +11,15 @@ const RUN_NATIVE = true;
 const LOG_GRAPH = false;
 const LOG_NUMBERS = true;
 const RUN_N = 10;
-const RUN_BENCHMARK = false;
-const LOG_ASTIR = false;
+const RUN_BENCHMARK = true;
+const LOG_PARSE_TREE = false;
 const LOG_DATA = false;
 const RUN_EMIT = true;
 const WRITE_EMIT = true;
 const EMIT_PATH = './json_parser.js';
 
-const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
-// const input = readFile ? await readFile('./json_sample1k.json', 'utf-8') : await (await fetch('./json_sample1k.json')).text();
+// const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
+const input = readFile ? await readFile('./json_sample1k.json', 'utf-8') : await (await fetch('./json_sample1k.json')).text();
 
 // -----------------------------------------------------------------------
 if (LOG_NUMBERS)
@@ -86,7 +86,7 @@ const jsonSemantics = new Semantics(jsonGraph, {
   },
 
   Object(_s1, items, _s2) {
-    const pairs: AllASTNodes[][] = this(items);
+    const pairs: ParseNode[][] = this(items);
 
     const obj: Record<string, any> = {};
     for (const [key, _colon, value] of pairs) {
@@ -171,9 +171,8 @@ const suite = new Benchmark.Suite('json-test');
 
 const tests = [() => suite.add("combined", () => {
   const result = parseJSON(input, 'Entry');
-  const astIR = transformCSTRoot(result);
-  const typedAST = toTypedAST(astIR);
-  const data = jsonSemantics.evaluate(typedAST);
+  const parseTree = toParseTree(result);
+  const data = jsonSemantics.evaluate(parseTree);
   data;
 }), () => suite.add("parser", () => {
   const result = parseJSON(input, 'Entry');
@@ -197,14 +196,13 @@ if (RUN_N > 0) {
     parseJSON(input, 'Entry');
   console.timeEnd(String(RUN_N + ' parses'));
 
-  console.time(String(RUN_N + ' parse + ast + semantics'));
+  console.time(String(RUN_N + ' parse + toParseTree + semantics'));
   for (let i = 0; i < RUN_N; i++) {
     const result = parseJSON(input, 'Entry');
-    const astIR = transformCSTRoot(result);
-    const typedAST = toTypedAST(astIR);
-    jsonSemantics.evaluate(typedAST);
+    const parseTree = toParseTree(result);
+    jsonSemantics.evaluate(parseTree);
   }
-  console.timeEnd(String(RUN_N + ' parse + ast + semantics'));
+  console.timeEnd(String(RUN_N + ' parse + toParseTree + semantics'));
 }
 
 if (RUN_BENCHMARK)
@@ -217,13 +215,6 @@ if (LOG_NUMBERS)
   console.log('Result: ', JSON.stringify(result).length);
 
 if (result.ok) {
-  console.time('transformCSTRoot');
-  const astIR = transformCSTRoot(result);
-  console.timeEnd('transformCSTRoot');
-
-  if (LOG_NUMBERS)
-    console.log('ASTIR: ', JSON.stringify(astIR).length);
-
   console.time('tokenize');
   const tokens = tokenize(result);
   console.timeEnd('tokenize');
@@ -231,17 +222,12 @@ if (result.ok) {
   if (LOG_NUMBERS)
     console.log('Tokens#: ', tokens.length, ' Tokens: ', JSON.stringify(tokens).length);
 
-  if (LOG_ASTIR) {
-    console.log(JSON.stringify(astIR).slice(0, 50000));
-    console.log(JSON.stringify(astIR).slice(-50000));
-  }
-
-  console.time('toTypedAST');
-  const typedAST = toTypedAST(astIR);
-  console.timeEnd('toTypedAST');
+  console.time('toParseTree');
+  const parseTree = toParseTree(result);
+  console.timeEnd('toParseTree');
 
   console.time('jsonSemantics');
-  const data = jsonSemantics.evaluate(typedAST);
+  const data = jsonSemantics.evaluate(parseTree);
   console.timeEnd('jsonSemantics');
 
   if (LOG_DATA)

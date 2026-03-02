@@ -1,7 +1,7 @@
 import * as graph from '../graph.js';
 import * as parser from '../parser.js';
 import * as scc from '../scc.js';
-import * as ast from '../ast.js';
+import * as nodes from '../nodes.js';
 import * as semantics from '../semantics.js';
 import * as tokenize from '../tokenize.js';
 import * as dsl from '../dsl/dsl.js';
@@ -116,7 +116,7 @@ export const s = semantics.Semantics.returns<number>()(g, {
   Entry(expressions, extra) {
     let sum = 0;
     for (const [expr] of [...expressions.iterations, ...extra.iterations]) {
-      if (expr instanceof ast.TerminalNode)
+      if (expr instanceof nodes.TerminalNode)
         continue;
       sum += this(expr);
     }
@@ -163,7 +163,7 @@ export function timeof<T extends (...args: any[]) => any>(fn: T, ...args: Parame
 
 import * as preload from './repl-preload.js';
 import { readFileSync, writeFileSync } from 'node:fs';
-for (const item of [graph, parser, scc, ast, semantics, tokenize, {
+for (const item of [graph, parser, scc, nodes, semantics, tokenize, {
   dsl, readFileSync, writeFileSync, emit
 }, preload] as any[]) {
   for (const key of Object.keys(item)) {

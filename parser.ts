@@ -20,10 +20,10 @@ export type Result =
   | BaseResult & { type: 'lookahead'; positive: boolean; value: Result; }
   | BaseResult & { type: 'state'; state: StateName; value: Result; }
   | BaseResult & { type: 'choice'; value: Result; alt: number | null; }
-  | BaseResult & { type: 'sequence'; value: Result | Result[]; }
+  | BaseResult & { type: 'sequence'; value: Result[]; }
   | BaseResult & { type: 'terminal'; value: MatcherValue; ok: true; }
   | BaseResult & { type: 'terminal'; value: null; ok: false; }
-  | BaseResult & { type: 'iteration'; kind: IterationOperator; value: Result | Result[]; }
+  | BaseResult & { type: 'iteration'; kind: IterationOperator; value: Result[]; }
   | BaseResult & { type: 'rewind'; value: Result; }
   | BaseResult & { type: 'root'; trailing_ws: MatcherValue | null; value: Result & { type: 'state'; }; };
 
@@ -247,7 +247,7 @@ function buildSequence<K extends StateName>(
     const x = buildTerm(ctx, term, lexical);
     r = ctx.logic((rc, pos) => {
       const r = x(rc, pos);
-      return { type: 'sequence', ok: r.ok, pos: r.pos, value: r };
+      return { type: 'sequence', ok: r.ok, pos: r.pos, value: [r] };
     }, { x });
   } else {
     const ev: RV<K>[] = [];
@@ -395,7 +395,7 @@ function withOperators<K extends StateName>(
         type: 'iteration',
         ok: r.ok,
         pos: hasRewind ? (r.ok ? r.pos : pos) : r.pos,
-        value: r,
+        value: [r],
         kind: '@'
       };
     }, { x, hasRewind }) : ctx.logic((rc, pos) => {
@@ -405,7 +405,7 @@ function withOperators<K extends StateName>(
         type: 'iteration',
         ok: r.ok,
         pos: hasRewind ? (r.ok ? r.pos : pos) : r.pos,
-        value: r,
+        value: [r],
         kind: '@',
         ws
       };
@@ -426,7 +426,7 @@ function withOperators<K extends StateName>(
           type: 'iteration',
           ok: r.ok,
           pos: r.pos,
-          value: r,
+          value: [r],
           kind: '?'
         };
     }, { x, hasRewind }) : ctx.logic((rc, pos) => {
@@ -444,7 +444,7 @@ function withOperators<K extends StateName>(
           type: 'iteration',
           ok: r.ok,
           pos: r.pos,
-          value: r,
+          value: [r],
           kind: '?',
           ws
         };

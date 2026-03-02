@@ -11,7 +11,7 @@
     "./graph": "./dist/graph.js",
     "./parser": "./dist/parser.js",
     "./emit": "./dist/emit.js",
-    "./ast": "./dist/ast.js",
+    "./nodes": "./dist/nodes.js",
     "./semantics": "./dist/semantics.js",
     "./tokenize": "./dist/tokenize.js",
     "./scc": "./dist/scc.js"
