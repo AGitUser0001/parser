@@ -6,7 +6,7 @@ export function toParseTree(result: Result): RootNode {
     throw new Error(`toParseTree: Got failing result`, { cause: result });
   const out: ParseTreeNode[] = [];
   const text: string[] = [];
-  const len = transformCST(result, out, str => text.push(str));
+  const len = transformCST(result, out, text);
 
   const sourceText = text.join('');
   const start = result.pos - len;
@@ -15,30 +15,30 @@ export function toParseTree(result: Result): RootNode {
   return rootNode;
 }
 
-function transformCST(result: Result, out: ParseTreeNode[], addText: (str: string) => void): number {
+function transformCST(result: Result, out: ParseTreeNode[], text: string[]): number {
   if (!result.ok) return 0;
   let len = 0, wslen = 0;
   if (result.ws) {
-    addText(result.ws);
+    text.push(result.ws);
     len += result.ws.length;
     wslen = result.ws.length;
   }
   switch (result.type) {
     case 'terminal':
-      addText(result.value);
+      text.push(result.value);
       len += result.value.length;
       out.push(new TerminalNode([], result.pos - len + wslen, result.pos, result.value));
       break;
 
     case 'sequence':
       for (let i = 0; i < result.value.length; i++) {
-        len += transformCST(result.value[i], out, addText);
+        len += transformCST(result.value[i], out, text);
       }
       break;
 
     case 'choice':
     case 'rewind':
-      transformCST(result.value, out, addText);
+      transformCST(result.value, out, text);
       break;
 
     case 'iteration':
@@ -48,7 +48,7 @@ function transformCST(result: Result, out: ParseTreeNode[], addText: (str: strin
         const children: ParseTreeNode[] = [];
         for (let i = 0; i < v.length; i++) {
           const startIndex = children.length;
-          len += transformCST(v[i], children, addText);
+          len += transformCST(v[i], children, text);
           const iter = children.slice(startIndex);
           iterations[i] = iter;
         }
@@ -62,17 +62,17 @@ function transformCST(result: Result, out: ParseTreeNode[], addText: (str: strin
     case 'state':
       {
         const newOut: ParseTreeNode[] = [];
-        len += transformCST(result.value, newOut, addText);
+        len += transformCST(result.value, newOut, text);
         out.push(new StateNode(newOut, result.pos - len + wslen, result.pos, result.state));
       }
       break;
 
     case 'root':
       if (result.trailing_ws) {
-        addText(result.trailing_ws);
+        text.push(result.trailing_ws);
         len += result.trailing_ws.length;
       }
-      transformCST(result.value, out, addText);
+      transformCST(result.value, out, text);
       break;
 
     default:
