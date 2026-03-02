@@ -346,11 +346,6 @@ function buildRegex<K extends StateName>(ctx: ParserCtx<K>, re: RegExp): RV<K> {
   }, { re });
 }
 
-export type Segments<K extends StateName> = {
-  readonly ops: ReadonlySet<StandaloneOperator>,
-  readonly body: readonly (Exclude<GraphToken<K>, StandaloneOperator> | Generic)[]
-};
-
 function throwOnGeneric<K extends StateName>(x: Exclude<GraphToken<K>, StandaloneOperator> | Generic):
   asserts x is Exclude<GraphToken<K>, StandaloneOperator> {
   if (isGeneric(x))

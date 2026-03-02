@@ -1,6 +1,5 @@
 import { computeSCCInfo, type SccId } from './scc.js';
 import { customInspectSymbol, freeze, MapView, SetView } from './shared.js';
-import { type Segments } from './parser.js';
 
 export type IterationOperator = '*' | '+' | '?' | '@';
 const iterationOperatorSet: Set<IterationOperator> & { has(k: string): k is IterationOperator; } =
@@ -553,6 +552,10 @@ function calculateArity_Choice(
   return expected ?? 0;
 }
 
+export type Segments<K extends StateName> = {
+  readonly ops: ReadonlySet<StandaloneOperator>,
+  readonly body: readonly (Exclude<GraphToken<K>, StandaloneOperator> | Generic)[]
+};
 function calculateSegments<K extends StateName>(xs: GraphCollection<K>): Segments<K> {
   const ops = new Set<StandaloneOperator>();
   const body: (Exclude<GraphToken<K>, StandaloneOperator> | Generic)[] = [];
