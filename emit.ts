@@ -264,7 +264,7 @@ function transformCode(
     // ========================
     if (ch === '/' && peek(1) === '/') {
       let start = i;
-      while (i < code.length && code[i] !== '\n') i++;
+      while (i < code.length && !/[\r\n\u2028\u2029]/u.test(code[i])) i++;
       out += code.slice(start, i);
       continue;
     }
