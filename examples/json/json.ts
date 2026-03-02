@@ -58,7 +58,7 @@ const jsonStates = {
   boolean: /true|false/,
   Items: ['?', '@Value', [['*', '@Sep', '@Value']]],
 
-  null: 'null'
+  null: /null/
 } as const;
 const jsonGraph = input_to_graph<keyof typeof jsonStates>(jsonStates);
 //#endregion
