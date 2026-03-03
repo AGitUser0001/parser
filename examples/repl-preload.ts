@@ -163,8 +163,8 @@ export function timeof<T extends (...args: any[]) => any>(fn: T, ...args: Parame
 
 import * as preload from './repl-preload.js';
 import { readFileSync, writeFileSync } from 'node:fs';
-for (const item of [graph, parser, scc, nodes, semantics, tokenize, {
-  dsl, readFileSync, writeFileSync, emit
+for (const item of [graph, parser, scc, nodes, semantics, tokenize, emit, {
+  dsl, readFileSync, writeFileSync
 }, preload] as any[]) {
   for (const key of Object.keys(item)) {
     (globalThis as any)[key] = item[key];
