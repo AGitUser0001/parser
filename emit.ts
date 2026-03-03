@@ -130,7 +130,7 @@ function emitFn<K extends StateName>(
   return transformCode(value.toString(), k, ctx.annotations);
 }
 
-import tokenize, { type Token } from "js-tokens";
+import tokenize, { type Token } from "./node_modules/js-tokens/index.js";
 function transformCode(code: string, kmap: Map<string, string>, annotations: boolean): string {
   const tokens = Array.from(tokenize(code));
   let out = "";
