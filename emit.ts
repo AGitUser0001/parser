@@ -140,7 +140,8 @@ function transformCode(code: string, kmap: Map<string, string>, annotations: boo
   let out = "";
   const stack: Array<"block" | "objectKey" | "objectValue" | "bracket" | "paren"> = [];
   let lastSigToken: Token | null = null;
-  const isWS = (type: string) => type === "WhiteSpace" || type.includes("Comment") || type === "LineTerminatorSequence";
+  const isWS = (type: Token['type']) =>
+    type === "WhiteSpace" || type.includes("Comment") || type === "LineTerminatorSequence";
 
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
