@@ -191,17 +191,7 @@ function transformCode(code: string, kmap: Map<string, string>, annotations: boo
           out += value;
         }
       } else if (!isPropertyAccess && mapped) {
-        let nextIdx = i + 1;
-        while (tokens[nextIdx] && isWS(tokens[nextIdx].type)) {
-          nextIdx++;
-        }
-
-        if (tokens[nextIdx] &&
-          tokens[nextIdx].type === 'Punctuator' &&
-          tokens[nextIdx].value === ':')
-          out += value;
-        else
-          out += mapped;
+        out += mapped;
       }
       else {
         out += value;
