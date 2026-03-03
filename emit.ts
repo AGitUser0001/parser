@@ -21,7 +21,7 @@ interface EmitCtx<K extends StateName> {
   readonly funcToState: Map<Fn<FnT<K, unknown>>, StateKey<K>>;
   readonly stateMap: Map<StateKey<K>, string>;
   readonly annotations: boolean;
-  name(): `$${string}$`;
+  name(): string;
 };
 
 const INVALID_RE = /[^$_\p{ID_Start}\p{ID_Continue}\u200c\u200d]+/ug;
@@ -36,13 +36,13 @@ export function emit<K extends StateName>(
     funcToState: new Map,
     annotations,
     name() {
-      const base36 = (++c).toString(36).padStart(6, '0');
+      const base36 = (c++).toString(36);
       return `$${base36}$`;
     }
   }
   const { states } = parser.resources;
   for (const stateKey of states.keys()) {
-    let nK = `State${ctx.name()}${stateKey.replaceAll(INVALID_RE, '')}`;
+    const nK = `State${ctx.name()}${stateKey.replaceAll(INVALID_RE, '')}`;
     ctx.stateMap.set(stateKey, nK);
     ctx.vars.set(nK, `() => { throw new Error("Internal error: state definition missing."); }`);
   }
@@ -115,13 +115,14 @@ function emitFn<K extends StateName>(
   if (value.resources.toState !== undefined) {
     k.set(value.resources.toState[0], ctx.stateMap.get(value.resources.toState[1] as StateKey<K>)!);
   }
+  let n: string | undefined;
   for (const [key, val] of e) {
     if (key === 'toState') continue;
     let v = emitValue(ctx, val);
     if (IS_SIMPLE_RE.test(v))
       k.set(key, v)
     else {
-      const nK = `${ctx.name()}${key}` as const;
+      const nK = `${n ??= ctx.name()}${key}`;
       k.set(key, nK);
       ctx.vars.set(nK, v);
     }
@@ -133,267 +134,81 @@ function emitFn<K extends StateName>(
   return start + transformCode(body, k, ctx.annotations) + end;
 }
 
-const isObjectLiteralPosition = (prev: string | null): boolean => {
-  return (
-    prev === '=' ||
-    prev === '(' ||
-    prev === '[' ||
-    prev === ',' ||
-    prev === ':' ||
-    prev === '?' ||
-    prev === '!' ||
-    prev === '${' ||
-    (!!prev && isIdStart(prev)) ||
-    (!!prev && isIdContinue(prev))
-  );
-}
+import tokenize, { type Token } from "js-tokens";
+function transformCode(code: string, kmap: Map<string, string>, annotations: boolean): string {
+  const tokens = Array.from(tokenize(code));
+  let out = "";
+  const stack: Array<"block" | "objectKey" | "objectValue" | "bracket" | "paren"> = [];
+  let lastSigToken: Token | null = null;
+  const isWS = (type: string) => type === "WhiteSpace" || type.includes("Comment") || type === "LineTerminatorSequence";
 
-const isIdStart = (ch: string) =>
-  /[$_\p{ID_Start}]/u.test(ch);
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    const { type, value } = token;
 
-const isIdContinue = (ch: string) =>
-  /[$\u200C\u200D_\p{ID_Continue}]/u.test(ch);
+    if (annotations && type === "MultiLineComment" && value
+      .slice(2).trimStart().startsWith(':')) {
+        out += value.slice(2, -2);
+        continue;
+    }
+    if (isWS(type)) {
+      out += value;
+      continue;
+    }
 
-function transformCode(
-  code: string,
-  kmap: Map<string, string>,
-  annotations: boolean
-): string {
-  let i = 0;
-  let out = '';
-  type Scope = { type: 'stmt', expr: boolean } | { type: 'block' | 'templExpr' | 'template' | 'paren' | 'bracket' } | { type: 'object'; expect: 'key' | 'value' };
-  const scopes: Scope[] = [{ type: 'stmt', expr: false }];
+    if (type === "Punctuator") {
+      if (value === "{") {
+        // It is a BLOCK if it follows these specific patterns:
+        const isBlock = !lastSigToken || (
+          (lastSigToken.type === "Punctuator" && [")", ";", "=>"].includes(lastSigToken.value)) ||
+          (lastSigToken.type === "IdentifierName" && ["else", "try", "finally", "do"].includes(lastSigToken.value))
+        );
 
-  const peek = (n = 0) => code[i + n];
+        stack.push(isBlock ? "block" : "objectKey");
+      } else if (value === "}") {
+        stack.pop();
+      } else if (value === "[") {
+        stack.push("bracket");
+      } else if (value === "]") {
+        stack.pop();
+      } else if (value === "(") {
+        stack.push("paren");
+      } else if (value === ")") {
+        stack.pop();
+      } else if (value === "," || value === ":") {
+        const scope = stack[stack.length - 1];
+        if (scope === "objectValue" || scope === "objectKey")
+          stack[stack.length - 1] = value === "," ? "objectKey" : "objectValue";
+      }
+      out += value;
+    } else if (type === "IdentifierName") {
+      const scope = stack[stack.length - 1];
+      const mapped = kmap.get(value);
+      const isPropertyAccess = lastSigToken?.value === "." || lastSigToken?.value === "?.";
 
-  function consumeString(quote: string) {
-    let start = i++;
-    while (i < code.length) {
-      if (code[i] === '\\') {
-        // Proper unicode escape handling
-        if (code[i + 1] === 'u' && code[i + 2] === '{') {
-          i += 3;
-          while (i < code.length && code[i] !== '}') i++;
-          i++;
-        } else if (code[i + 1] === 'u') {
-          i += 6;
-        } else if (code[i + 1] === 'x') {
-          i += 4;
+      if (scope === "objectKey" && !isPropertyAccess) {
+        // Peek logic for Key vs Shorthand
+        let nextIdx = i + 1;
+        while (tokens[nextIdx] && isWS(tokens[nextIdx].type)) {
+          nextIdx++;
+        }
+
+        if (tokens[nextIdx] && [',', '}', '='].includes(tokens[nextIdx]!.value) && mapped) {
+          out += `${value}: ${mapped}`; // Shorthand expansion
         } else {
-          i += 2;
+          out += value;
         }
-        continue;
+      } else if (!isPropertyAccess && mapped) {
+        out += mapped; // Standard variable replacement
       }
-      if (code[i] === quote) {
-        i++;
-        break;
+      else {
+        out += value;
       }
-      i++;
-    }
-    return code.slice(start, i);
-  }
-
-  function consumeIdentifier() {
-    let start = i++;
-    while (i < code.length && isIdContinue(code[i])) i++;
-    return code.slice(start, i);
-  }
-
-  function consumeBlockComment() {
-    i += 2;
-    let start = i;
-    while (i < code.length && !(code[i] === '*' && code[i + 1] === '/')) i++;
-    const content = code.slice(start, i);
-    i += 2;
-
-    if (annotations && content.trimStart().startsWith(':')) {
-      return ': ' + content.trimStart().slice(1).trimStart();
+    } else {
+      out += value;
     }
 
-    return '/*' + content + '*/';
-  }
-
-  let lastSigChar: string | null = null;
-  while (i < code.length) {
-    const scope = scopes[scopes.length - 1];
-    const ch = peek();
-
-    // ========================
-    // Strings
-    // ========================
-
-    if (scope.type === 'template') {
-      if (ch === '\\') {
-        out += code.slice(i, i + 2);
-        i += 2;
-        continue;
-      }
-      if (ch === '`') {
-        scopes.pop();
-        out += ch;
-        i++;
-        continue;
-      }
-      if (ch === '$' && peek(1) === '{') {
-        scopes.push({ type: 'templExpr' });
-        out += '${';
-        lastSigChar = '${';
-        i += 2;
-        continue;
-      }
-      out += ch;
-      i++;
-      continue;
-    }
-
-    if (ch === '"' || ch === "'") {
-      out += consumeString(ch);
-      lastSigChar = ch;
-      continue;
-    }
-
-    if (ch === '`') {
-      scopes.push({ type: 'template' });
-      out += ch;
-      i++;
-      continue;
-    }
-
-    // ========================
-    // Comments
-    // ========================
-    if (ch === '/' && peek(1) === '/') {
-      let start = i;
-      while (i < code.length && !/[\r\n\u2028\u2029]/u.test(code[i])) i++;
-      out += code.slice(start, i);
-      continue;
-    }
-
-    if (ch === '/' && peek(1) === '*') {
-      out += consumeBlockComment();
-      continue;
-    }
-
-    if (ch === '{') {
-      if (isObjectLiteralPosition(lastSigChar)) {
-        scopes.push({ type: 'object', expect: 'key' });
-      } else {
-        scopes.push({ type: 'block' });
-      }
-
-      out += ch;
-      lastSigChar = ch;
-      i++;
-      continue;
-    }
-
-    if (ch === '}') {
-      scopes.pop();
-      out += ch;
-      lastSigChar = ch;
-      i++;
-      continue;
-    }
-
-    // ========================
-    // Paren / Bracket
-    // ========================
-    if (ch === '(') {
-      scopes.push({ type: 'paren' });
-      out += ch;
-      lastSigChar = ch;
-      i++;
-      continue;
-    }
-
-    if (ch === ')') {
-      scopes.pop();
-      out += ch;
-      lastSigChar = ch;
-      i++;
-      continue;
-    }
-
-    if (ch === '[') {
-      scopes.push({ type: 'bracket' });
-      out += ch;
-      lastSigChar = ch;
-      i++;
-      continue;
-    }
-
-    if (ch === ']') {
-      scopes.pop();
-      out += ch;
-      lastSigChar = ch;
-      i++;
-      continue;
-    }
-
-    // ========================
-    // Identifier handling
-    // ========================
-    if (isIdStart(ch)) {
-      const name = consumeIdentifier();
-      const mapped = kmap.get(name);
-
-      const isPropertyAccess =
-        lastSigChar === '.' ||
-        (lastSigChar === '?' && out.trimEnd().endsWith('?.'));
-
-      if (scope.type === 'object' && scope.expect === 'key') {
-        // lookahead for :
-        let j = i;
-        while (/\s/.test(code[j])) j++;
-
-        if (code[j] === ':') {
-          // real key
-          out += name;
-          scope.expect = 'value';
-          lastSigChar = out.trimEnd().at(-1)!;
-          continue;
-        }
-
-        // shorthand
-        if (mapped) {
-          out += name + ': ' + mapped;
-        } else {
-          out += name;
-        }
-
-        scope.expect = 'value';
-        lastSigChar = out.trimEnd().at(-1)!;
-        continue;
-      }
-
-      if (!isPropertyAccess && mapped) {
-        out += mapped;
-      } else {
-        out += name;
-      }
-
-      lastSigChar = out.trimEnd().at(-1)!;
-      continue;
-    }
-
-    // ========================
-    // Object comma / colon tracking
-    // ========================
-    if (scope.type === 'object') {
-      if (ch === ',') {
-        scope.expect = 'key';
-        lastSigChar = ch;
-      }
-      if (ch === ':') {
-        scope.expect = 'value';
-        lastSigChar = ch;
-      }
-    }
-
-    out += ch;
-    if (!/\s/.test(ch))
-      lastSigChar = ch;
-    i++;
+    lastSigToken = token;
   }
 
   return out;
