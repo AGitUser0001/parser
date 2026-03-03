@@ -127,11 +127,7 @@ function emitFn<K extends StateName>(
       ctx.vars.set(nK, v);
     }
   }
-  let str = value.toString();
-  let start = str.slice(0, str.indexOf('{'));
-  let body = str.slice(str.indexOf('{'), str.lastIndexOf('}'));
-  let end = str.slice(str.lastIndexOf('}'));
-  return start + transformCode(body, k, ctx.annotations) + end;
+  return transformCode(value.toString(), k, ctx.annotations);
 }
 
 import tokenize, { type Token } from "js-tokens";
