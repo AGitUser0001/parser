@@ -69,7 +69,7 @@ function emitValue<K extends StateName>(
   k: string | null = null
 ): string {
   const existing = ctx.memoMap.get(value);
-  if (existing)
+  if (existing !== undefined)
     return existing;
   if (k !== null)
     ctx.memoMap.set(value, k);
