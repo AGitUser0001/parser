@@ -110,7 +110,6 @@ function emitFn<K extends StateName>(
   let k = new Map<string, string>();
   let n = ctx.name();
   for (const [key, val] of e) {
-    if (key === 'toState') continue;
     const nK = `${n}${key}`;
     const v = emitValue(ctx, val, nK);
     if (IS_SIMPLE_RE.test(v)) {
