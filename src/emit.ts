@@ -178,19 +178,30 @@ function transformCode(code: string, kmap: Map<string, string>, annotations: boo
       const isPropertyAccess = lastSigToken?.value === "." || lastSigToken?.value === "?.";
 
       if (scope === "objectKey" && !isPropertyAccess) {
-        // Peek logic for Key vs Shorthand
         let nextIdx = i + 1;
         while (tokens[nextIdx] && isWS(tokens[nextIdx].type)) {
           nextIdx++;
         }
 
-        if (tokens[nextIdx] && [',', '}', '='].includes(tokens[nextIdx]!.value) && mapped) {
+        if (tokens[nextIdx] &&
+          tokens[nextIdx].type === 'Punctuator' &&
+          [',', '}', '='].includes(tokens[nextIdx].value) && mapped) {
           out += `${value}: ${mapped}`; // Shorthand expansion
         } else {
           out += value;
         }
       } else if (!isPropertyAccess && mapped) {
-        out += mapped; // Standard variable replacement
+        let nextIdx = i + 1;
+        while (tokens[nextIdx] && isWS(tokens[nextIdx].type)) {
+          nextIdx++;
+        }
+
+        if (tokens[nextIdx] &&
+          tokens[nextIdx].type === 'Punctuator' &&
+          tokens[nextIdx].value === ':')
+          out += value;
+        else
+          out += mapped;
       }
       else {
         out += value;
