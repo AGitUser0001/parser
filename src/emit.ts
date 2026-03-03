@@ -5,21 +5,20 @@ type Func = (...args: any[]) => any;
 type O<T extends Func> = Fn<T> | string | bigint | number | boolean | undefined | null | RegExp | O<T>[] | Set<O<T>> | Map<O<T>, O<T>>;
 export type Resources<T extends Func> = {
   [key: string]: O<T>;
-} & { toState?: [string, StateName] };
+};
 export type Fn<T extends Func, X extends Func = T> = {
   (...args: Parameters<T>): ReturnType<T>;
   resources: Resources<X>;
 }
 export function logic<T extends Func, X extends Func>(closure: T, resources: Resources<X>): Fn<T, X> {
   const fn = closure as Partial<Fn<T, X>>;
-  fn.resources = Object.freeze(resources);
+  fn.resources = resources;
   return fn as Fn<T, X>;
 }
 
 interface EmitCtx<K extends StateName> {
   readonly vars: Map<string, string>;
-  readonly funcToState: Map<Fn<FnT<K, unknown>>, StateKey<K>>;
-  readonly stateMap: Map<StateKey<K>, string>;
+  readonly memoMap: Map<O<FnT<K, unknown>>, string>;
   readonly annotations: boolean;
   name(): string;
 };
@@ -32,8 +31,7 @@ export function emit<K extends StateName>(
   let c = 0;
   const ctx: EmitCtx<K> = {
     vars: new Map,
-    stateMap: new Map,
-    funcToState: new Map,
+    memoMap: new Map,
     annotations,
     name() {
       const base36 = (c++).toString(36);
@@ -41,15 +39,11 @@ export function emit<K extends StateName>(
     }
   }
   const { states } = parser.resources;
-  for (const stateKey of states.keys()) {
-    const nK = `State${ctx.name()}${stateKey.replaceAll(INVALID_RE, '')}`;
-    ctx.stateMap.set(stateKey, nK);
-    ctx.vars.set(nK, `() => { throw new Error("Internal error: state definition missing."); }`);
-  }
   for (const [stateKey, state] of states) {
-    const nK = ctx.stateMap.get(stateKey)!;
-    ctx.vars.set(nK, emitValue(ctx, state));
-    ctx.funcToState.set(state, stateKey);
+    const nK = `State${ctx.name()}${stateKey.replaceAll(INVALID_RE, '')}`;
+    const v = emitValue(ctx, state, nK);
+    ctx.vars.set(nK, v);
+    ctx.memoMap.set(state, nK);
   }
   let code = '';
   let parserv = emitFn(ctx, parser);
@@ -71,8 +65,14 @@ export function emit<K extends StateName>(
 
 function emitValue<K extends StateName>(
   ctx: EmitCtx<K>,
-  value: O<FnT<K, unknown>>
+  value: O<FnT<K, unknown>>,
+  k: string | null = null
 ): string {
+  const existing = ctx.memoMap.get(value);
+  if (existing)
+    return existing;
+  if (k !== null)
+    ctx.memoMap.set(value, k);
   switch (typeof value) {
     case 'string': return JSON.stringify(value);
     case 'bigint': return value.toString() + 'n';
@@ -106,31 +106,27 @@ function emitFn<K extends StateName>(
   ctx: EmitCtx<K>,
   value: Fn<Func, FnT<K, unknown>>
 ): string {
-  if (ctx.funcToState.has(value)) {
-    const stateKey = ctx.funcToState.get(value)!;
-    return ctx.stateMap.get(stateKey)!;
-  }
   let e = Object.entries(value.resources);
   let k = new Map<string, string>();
-  if (value.resources.toState !== undefined) {
-    k.set(value.resources.toState[0], ctx.stateMap.get(value.resources.toState[1] as StateKey<K>)!);
-  }
-  let n: string | undefined;
+  let n = ctx.name();
   for (const [key, val] of e) {
     if (key === 'toState') continue;
-    let v = emitValue(ctx, val);
-    if (IS_SIMPLE_RE.test(v))
-      k.set(key, v)
-    else {
-      const nK = `${n ??= ctx.name()}${key}`;
+    const nK = `${n}${key}`;
+    const v = emitValue(ctx, val, nK);
+    if (IS_SIMPLE_RE.test(v)) {
+      if (ctx.memoMap.get(val) === nK)
+        ctx.memoMap.delete(val);
+      k.set(key, v);
+    } else {
       k.set(key, nK);
       ctx.vars.set(nK, v);
+      ctx.memoMap.set(val, nK);
     }
   }
   return transformCode(value.toString(), k, ctx.annotations);
 }
 
-import tokenize, { type Token } from "./node_modules/js-tokens/index.js";
+import tokenize, { type Token } from "../node_modules/js-tokens/index.js";
 function transformCode(code: string, kmap: Map<string, string>, annotations: boolean): string {
   const tokens = Array.from(tokenize(code));
   let out = "";
@@ -145,8 +141,8 @@ function transformCode(code: string, kmap: Map<string, string>, annotations: boo
 
     if (annotations && type === "MultiLineComment" && value
       .slice(2).trimStart().startsWith(':')) {
-        out += value.slice(2, -2);
-        continue;
+      out += value.slice(2, -2);
+      continue;
     }
     if (isWS(type)) {
       out += value;

@@ -1,11 +1,11 @@
-import * as graph from '../graph.js';
-import * as parser from '../parser.js';
-import * as scc from '../scc.js';
-import * as nodes from '../nodes.js';
-import * as semantics from '../semantics.js';
-import * as tokenize from '../tokenize.js';
-import * as dsl from '../dsl/dsl.js';
-import * as emit from '../emit.js';
+import * as graph from 'parser/graph';
+import * as parser from 'parser/parser';
+import * as scc from 'parser/scc';
+import * as nodes from 'parser/nodes';
+import * as semantics from 'parser/semantics';
+import * as tokenize from 'parser/tokenize';
+import * as dsl from 'parser/dsl';
+import * as emit from 'parser/emit';
 
 //#region tests
 console.time('transform');

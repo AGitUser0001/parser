@@ -213,20 +213,24 @@ function buildTerm<K extends StateName>(
     return buildChoice(ctx, term, lexical);
   } else {
     let x: RV<K> = noop;
-    ctx.bind(term, v => { x = v; });
+    ctx.bind(term, v => {
+      x = v;
+      if (f.resources) f.resources.x = x;
+    });
 
+    let f: ReturnType<typeof ctx.logic>;
     if (lexical)
-      return ctx.logic((rc, pos) => {
+      return f = ctx.logic((rc, pos) => {
         const result = x(rc, pos);
         return result;
-      }, { toState: ['x', term] });
-    return ctx.logic((rc, pos) => {
+      }, { x });
+    return f = ctx.logic((rc, pos) => {
       let ws;
       [ws, pos] = skipWs(rc, pos);
       const result = x(rc, pos);
       if (ws) result.ws = result.ws ? ws + result.ws : ws;
       return result;
-    }, { toState: ['x', term] });
+    }, { x });
   }
 }
 const noop: RV<StateName> = logic<FnT<StateName>, never>((rc, pos) => {
