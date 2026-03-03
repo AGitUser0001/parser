@@ -68,9 +68,8 @@ function emitValue<K extends StateName>(
   value: O<FnT<K, unknown>>,
   k: string | null = null
 ): string {
-  const existing = ctx.memoMap.get(value);
-  if (existing !== undefined)
-    return existing;
+  if (ctx.memoMap.has(value))
+    return ctx.memoMap.get(value)!;
   if (k !== null)
     ctx.memoMap.set(value, k);
   switch (typeof value) {
