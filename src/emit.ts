@@ -107,7 +107,7 @@ export function emit<K extends StateName>(
       continue;
     } else if (IS_SIMPLE_RE.test(text)) {
       rewrite(new Map([[name, text]]));
-    } else if (totalRefs.get(name)?.[0] === 1) {
+    } else if (totalRefs.get(name)?.[0] === 1 && totalRefs.get(name)?.[1] === 1) {
       rewrite(new Map([[name, text]]));
     }
   }
