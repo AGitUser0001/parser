@@ -60,10 +60,6 @@ export function emit<K extends StateName>(
     }
   }
 
-  const refsTable = new Map<string, Map<string, number>>();
-  for (const [name, text] of ctx.vars)
-    refsTable.set(name, codeRefs(text));
-
   function rewrite(kmap: Map<string, string>) {
     for (const [name, refs] of refsTable) {
       if (kmap.has(name)) {
@@ -86,6 +82,7 @@ export function emit<K extends StateName>(
     }
   }
 
+  const refsTable = new Map<string, Map<string, number>>();
   const totalRefs = new Map<string, [direct: number, all: number]>();
   for (const [name, text] of ctx.vars) {
     const refs = codeRefs(text, false);
@@ -98,7 +95,9 @@ export function emit<K extends StateName>(
       const orig = totalRefs.get(n) || [0, 0];
       totalRefs.set(n, [orig[0], orig[1] + r]);
     }
-  };
+    refsTable.set(name, allRefs);
+  }
+
   for (const [name, text] of ctx.vars) {
     if (IS_VAR_RE.test(text)) {
       ctx.vars.set(name, ctx.vars.get(text)!);
