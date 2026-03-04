@@ -1,10 +1,10 @@
 import { StateNode, IterationNode, TerminalNode, type ParseTreeNode, RootNode } from './nodes.js';
 import { type StateName, type StateKey, Graph } from './graph.js';
-import { MapView, type DeepReplace, type UnionToIntersection, type Display } from './shared.js';
+import { MapView, type Replace, type UnionToIntersection, type Display } from './shared.js';
 
 type AllParseNodes_ = UnionToIntersection<ParseTreeNode>;
 export type ParseNode = Display<
-  DeepReplace<AllParseNodes_,
+  Replace<AllParseNodes_,
     | [ParseTreeNode | null, ParseNode]
     | [ParseTreeNode[], ParseNode[]] | [ParseTreeNode[][], ParseNode[][]]
   >

@@ -1,4 +1,4 @@
-import { input_to_graph, graph_to_input, build, toParseTree, Semantics, type ParseNode, emit, type ParserFn, type GraphStates, tokenize } from '../../dist/index.js';
+import { input_to_graph, graph_to_input, build, toParseTree, Semantics, type ParseNode, emit, type ParserFn, type GraphStates, tokenize, nodeFromJSON } from '../../dist/index.js';
 let util, readFile, writeFile;
 if (typeof global !== 'undefined') {
   util = await import('node:util');
@@ -225,6 +225,17 @@ if (result.ok) {
   console.time('toParseTree');
   const parseTree = toParseTree(result);
   console.timeEnd('toParseTree');
+
+  if (LOG_PARSE_TREE) {
+    console.time('parseTreeJSON');
+    const jsonText = JSON.stringify(parseTree);
+    console.timeEnd('parseTreeJSON');
+    if (LOG_NUMBERS)
+      console.log('parseTree_JSON: ', jsonText.length);
+    console.time('parseTreeToJS');
+    const js = nodeFromJSON(JSON.parse(jsonText));
+    console.timeEnd('parseTreeToJS');
+  }
 
   console.time('jsonSemantics');
   const data = jsonSemantics.evaluate(parseTree);

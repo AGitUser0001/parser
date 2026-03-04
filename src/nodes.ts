@@ -1,5 +1,6 @@
 import type { StateName, IterationOperator } from './graph.js';
 import type { Result, MatcherValue } from './parser.js';
+import type { DeepReplace, Display } from './shared.js';
 
 export function toParseTree(result: Result): RootNode {
   if (!result.ok)
@@ -118,6 +119,16 @@ export class RootNode extends ParseNode {
   get source() {
     return this._source;
   }
+
+  toJSON(): IncompleteRepresentation & { type: 'root' } {
+    return {
+      type: 'root',
+      children: this.children,
+      start: this.start,
+      end: this.end,
+      source: this.source
+    };
+  }
 }
 
 export class StateNode extends ParseNode {
@@ -129,6 +140,16 @@ export class StateNode extends ParseNode {
     super(children, start, end);
     for (const child of children)
       child.parent = this;
+  }
+
+  toJSON(): IncompleteRepresentation & { type: 'state' } {
+    return {
+      type: 'state',
+      children: this.children,
+      start: this.start,
+      end: this.end,
+      state: this.state
+    };
   }
 }
 
@@ -142,6 +163,16 @@ export class TerminalNode extends ParseNode {
     for (const child of children)
       child.parent = this;
   }
+
+  toJSON(): IncompleteRepresentation & { type: 'terminal' } {
+    return {
+      type: 'terminal',
+      children: this.children,
+      start: this.start,
+      end: this.end,
+      value: this.value
+    };
+  }
 }
 
 export class IterationNode extends ParseNode {
@@ -154,6 +185,97 @@ export class IterationNode extends ParseNode {
     super(children, start, end);
     for (const child of children)
       child.parent = this;
+  }
+
+  toJSON(): IncompleteRepresentation & { type: 'iteration' } {
+    return {
+      type: 'iteration',
+      start: this.start,
+      end: this.end,
+      kind: this.kind,
+      iterations: this.iterations
+    };
+  }
+}
+
+type BaseRepresentation = {
+  type: string;
+  start: number;
+  end: number;
+}
+
+export type RootRepresentation = BaseRepresentation & {
+  type: 'root';
+  children: Representation[];
+  source: string;
+};
+
+
+export type StateRepresentation = BaseRepresentation & {
+  type: 'state';
+  children: Representation[];
+  state: StateName;
+};
+
+export type TerminalRepresentation = BaseRepresentation & {
+  type: 'terminal';
+  children: Representation[];
+  value: string;
+};
+
+export type IterationRepresentation = BaseRepresentation & {
+  type: 'iteration';
+  kind: IterationOperator;
+  iterations: Representation[][];
+};
+
+export type Representation = RootRepresentation | StateRepresentation | TerminalRepresentation | IterationRepresentation;
+export type IncompleteRepresentation = Display<
+  DeepReplace<Representation, [Representation[], ParseTreeNode[]] | [Representation[][], ParseTreeNode[][]]>
+>;
+
+export function toJSON(value: ParseTreeNode): Representation {
+  const v = value.toJSON();
+  switch (v.type) {
+    case 'root':
+      const r = v as unknown as RootRepresentation;
+      r.children = v.children.map(toJSON);
+      return r;
+    case 'state':
+      const s = v as unknown as StateRepresentation;
+      s.children = v.children.map(toJSON);
+      return s;
+    case 'terminal':
+      const t = v as unknown as TerminalRepresentation;
+      t.children = v.children.map(toJSON);
+      return t;
+    case 'iteration':
+      const i = v as unknown as IterationRepresentation;
+      i.iterations = v.iterations.map(
+        a => a.map(toJSON)
+      );
+      return i;
+    default:
+      throw new TypeError(`Invalid Representation.type: ${(v as any).type}`, { cause: v });
+  }
+}
+
+export function fromJSON(value: Representation): ParseTreeNode {
+  const v = value;
+  switch (v.type) {
+    case 'root':
+      return new RootNode(v.children.map(fromJSON), v.start, v.end, v.source);
+    case 'state':
+      return new StateNode(v.children.map(fromJSON), v.start, v.end, v.state);
+    case 'terminal':
+      return new TerminalNode(v.children.map(fromJSON), v.start, v.end, v.value);
+    case 'iteration':
+      const i = v.iterations.map(
+        a => a.map(fromJSON)
+      );
+      return new IterationNode(i.flat(), v.start, v.end, v.kind, i);
+    default:
+      throw new TypeError(`Invalid Representation.type: ${(v as any).type}`, { cause: v });
   }
 }
 

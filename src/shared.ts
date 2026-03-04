@@ -112,6 +112,13 @@ type Replacement<M extends [any, any], T> =
   M extends any ? [T] extends [M[0]] ? M[1] : never : never;
 //
 
+// Shallow replace
+export type Replace<T, M extends [any, any]> = {
+  [P in keyof T]: T[P] extends M[0]
+  ? Replacement<M, T[P]>
+  : T[P];
+};
+
 export type Display<T> = T & { [K in never]: never };
 
 export const freeze = Object.freeze;
