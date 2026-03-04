@@ -6,7 +6,8 @@
     "verbatimModuleSyntax": true,
     "strict": true,
     "outDir": "./",
-    "declaration": true
+    "declaration": true,
+    "sourceMap": true
   },
   "include": [
     "./**.ts"

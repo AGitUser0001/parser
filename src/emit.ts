@@ -1,4 +1,4 @@
-import type { StateName, StateKey } from "./graph.js";
+import type { StateName } from "./graph.js";
 import { type Parser, type FnT, skipWs, improves, improves_error } from "./parser.js";
 
 type Func = (...args: any[]) => any;
@@ -24,6 +24,8 @@ interface EmitCtx<K extends StateName> {
 };
 
 const INVALID_RE = /[^$_\p{ID_Start}\p{ID_Continue}\u200c\u200d]+/ug;
+const IS_SIMPLE_RE = /^['"\d\-]/;
+const IS_VAR_RE = /^[$_\p{ID_Start}](?:[$_\u200C\u200D\p{ID_Continue}])*$/u;
 export function emit<K extends StateName>(
   parser: Parser<K>,
   annotations: boolean = false
@@ -42,23 +44,76 @@ export function emit<K extends StateName>(
   for (const [stateKey, state] of states) {
     const nK = `State${ctx.name()}${stateKey.replaceAll(INVALID_RE, '')}`;
     const v = emitValue(ctx, state, nK);
-    ctx.vars.set(nK, v);
-    ctx.memoMap.set(state, nK);
+    if (!ctx.vars.has(nK)) { 
+      ctx.vars.set(nK, v);
+    }
   }
   let code = '';
   let parserv = emitFn(ctx, parser);
+
+  const refsTable = new Map<string, Map<string, number>>();
+  for (const [name, text] of ctx.vars)
+    refsTable.set(name, codeRefs(text));
+
+  function rewrite(kmap: Map<string, string>) {
+    for (const [name, refs] of refsTable) {
+      if (kmap.has(name)) {
+        ctx.vars.delete(name);
+        refsTable.delete(name);
+        continue;
+      }
+      let hasRef = false;
+      for (const name of kmap.keys()) {
+        if (refs.get(name)) {
+          hasRef = true;
+          break;
+        }
+      }
+      if (!hasRef) continue;
+      const text = ctx.vars.get(name)!;
+      const newText = transformCode(text, kmap, false);
+      ctx.vars.set(name, newText);
+      refsTable.set(name, codeRefs(newText));
+    }
+  }
+
+  const totalRefs = new Map<string, [direct: number, all: number]>();
+  for (const [name, text] of ctx.vars) {
+    const refs = codeRefs(text, false);
+    const allRefs = codeRefs(text, true);
+    for (const [n, r] of refs) {
+      const orig = totalRefs.get(n) || [0, 0];
+      totalRefs.set(n, [orig[0] + r, orig[1]]);
+    }
+    for (const [n, r] of allRefs) {
+      const orig = totalRefs.get(n) || [0, 0];
+      totalRefs.set(n, [orig[0], orig[1] + r]);
+    }
+  };
+  for (const [name, text] of ctx.vars) {
+    if (IS_SIMPLE_RE.test(text)) {
+      rewrite(new Map([[name, text]]));
+    } else if (IS_VAR_RE.test(text)) {
+      ctx.vars.set(name, ctx.vars.get(text)!);
+      rewrite(new Map([[text, name]]));
+    } else if (totalRefs.get(name)?.[0] === 1) {
+      rewrite(new Map([[name, text]]));
+    }
+  }
+
   for (const [name, text] of ctx.vars) {
     code += `const ${name} = ${text};\n`;
   }
-  let fns = [
+  const fns = [
     improves,
     improves_error,
     skipWs,
   ];
-  let fnv = fns
-    .map(fn => fn.toString() + '\n')
-    .join('');
-  code += fnv;
+  for (const fn of fns) { 
+    const refs = totalRefs.get(fn.name)?.[1];
+    if (!refs) continue;
+    code += `${fn.toString()}\n`;
+  }
   code += `export const parse = ${parserv};`;
   return code;
 }
@@ -66,12 +121,10 @@ export function emit<K extends StateName>(
 function emitValue<K extends StateName>(
   ctx: EmitCtx<K>,
   value: O<FnT<K, unknown>>,
-  k: string | null = null
+  suggestedKey?: string
 ): string {
   if (ctx.memoMap.has(value))
     return ctx.memoMap.get(value)!;
-  if (k !== null)
-    ctx.memoMap.set(value, k);
   switch (typeof value) {
     case 'string': return JSON.stringify(value);
     case 'bigint': return value.toString() + 'n';
@@ -79,28 +132,31 @@ function emitValue<K extends StateName>(
     case 'boolean':
     case 'undefined':
       return String(value);
-    case 'function':
-      return emitFn(ctx, value);
     case 'symbol':
       throw new TypeError(`Cannot serialize symbols!`, { cause: value });
   }
   if (value === null) return 'null';
-  if (value instanceof Map) {
-    return `new Map(${emitValue(ctx, [...value.entries()])})`;
+  let v: string;
+  const k = suggestedKey ?? ctx.name();
+  ctx.memoMap.set(value, k);
+  if (typeof value === 'function') {
+    v = emitFn(ctx, value);
+  } else if (value instanceof Map) {
+    v = `new Map(${emitValue(ctx, [...value.entries()])})`;
+  } else if (value instanceof Set) {
+    v = `new Set(${emitValue(ctx, [...value.values()])})`;
+  } else if (Array.isArray(value)) {
+    v = `[${value.map(v => emitValue(ctx, v)).join(',')}]`;
+  } else if (value instanceof RegExp) {
+    v = value.toString();
+  } else {
+    const _exhaustive: never = value;
+    throw new TypeError(`Internal error: unknown value type`, { cause: value });
   }
-  if (value instanceof Set) {
-    return `new Set(${emitValue(ctx, [...value.values()])})`;
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(v => emitValue(ctx, v)).join(',')}]`;
-  }
-  if (value instanceof RegExp)
-    return value.toString();
-  const _exhaustive: never = value;
-  throw new TypeError(`Internal error: unknown value type`, { cause: value });
+  ctx.vars.set(k, v);
+  return k;
 }
 
-const IS_SIMPLE_RE = /^[$_\p{ID_Start}](?:[$_\u200C\u200D\p{ID_Continue}])*$|^['"\d\-]/u;
 function emitFn<K extends StateName>(
   ctx: EmitCtx<K>,
   value: Fn<Func, FnT<K, unknown>>
@@ -109,26 +165,45 @@ function emitFn<K extends StateName>(
   let k = new Map<string, string>();
   let n = ctx.name();
   for (const [key, val] of e) {
-    const nK = `${n}${key}`;
-    const v = emitValue(ctx, val, nK);
-    if (IS_SIMPLE_RE.test(v)) {
-      if (ctx.memoMap.get(val) === nK)
-        ctx.memoMap.delete(val);
-      k.set(key, v);
-    } else {
-      k.set(key, nK);
-      ctx.vars.set(nK, v);
-      ctx.memoMap.set(val, nK);
-    }
+    const v = emitValue(ctx, val, `${n}${key}`);
+    k.set(key, v);
   }
   return transformCode(value.toString(), k, ctx.annotations);
 }
 
 import tokenize, { type Token } from "../node_modules/js-tokens/index.js";
 function transformCode(code: string, kmap: Map<string, string>, annotations: boolean): string {
+  return mapCode(code, (tok) => {
+    return kmap.get(tok.value);
+  }, (tok) => {
+    if (annotations && tok.type === "MultiLineComment" && tok.value
+      .slice(2).trimStart().startsWith(':')) {
+      return tok.value.slice(2, -2);
+    }
+  });
+}
+
+function codeRefs(code: string, indirect = true): Map<string, number> {
+  let refs = new Map<string, number>();
+  mapCode(code, (tok, stack) => {
+    if (!indirect && stack.includes('block'))
+      return;
+    const orig = refs.get(tok.value) ?? 0;
+    refs.set(tok.value, orig + 1);
+  });
+  return refs;
+}
+
+type StackT = Array<"block" | "objectKey" | "objectValue" | "bracket" | "paren">;
+type CallbackT = (tok: Token, stack: StackT, lastSigToken: Token | null) => string | void;
+function mapCode(
+  code: string,
+  onIdent?: CallbackT,
+  onTok?: CallbackT
+): string {
   const tokens = Array.from(tokenize(code));
   let out = "";
-  const stack: Array<"block" | "objectKey" | "objectValue" | "bracket" | "paren"> = [];
+  const stack: StackT = [];
   let lastSigToken: Token | null = null;
   const isWS = (type: Token['type']) =>
     type === "WhiteSpace" || type.includes("Comment") || type === "LineTerminatorSequence";
@@ -137,9 +212,9 @@ function transformCode(code: string, kmap: Map<string, string>, annotations: boo
     const token = tokens[i];
     const { type, value } = token;
 
-    if (annotations && type === "MultiLineComment" && value
-      .slice(2).trimStart().startsWith(':')) {
-      out += value.slice(2, -2);
+    const replacement = onTok?.(token, stack, lastSigToken);
+    if (replacement != null) {
+      out += replacement;
       continue;
     }
     if (isWS(type)) {
@@ -174,7 +249,6 @@ function transformCode(code: string, kmap: Map<string, string>, annotations: boo
       out += value;
     } else if (type === "IdentifierName") {
       const scope = stack[stack.length - 1];
-      const mapped = kmap.get(value);
       const isPropertyAccess = lastSigToken?.value === "." || lastSigToken?.value === "?.";
 
       if (scope === "objectKey" && !isPropertyAccess) {
@@ -185,15 +259,22 @@ function transformCode(code: string, kmap: Map<string, string>, annotations: boo
 
         if (tokens[nextIdx] &&
           tokens[nextIdx].type === 'Punctuator' &&
-          [',', '}', '='].includes(tokens[nextIdx].value) && mapped) {
-          out += `${value}: ${mapped}`; // Shorthand expansion
+          [',', '}', '='].includes(tokens[nextIdx].value)) {
+          const mapped = onIdent?.(token, stack, lastSigToken);
+          if (mapped != null)
+            out += `${value}: ${mapped}`; // Shorthand expansion
+          else
+            out += value;
         } else {
           out += value;
         }
-      } else if (!isPropertyAccess && mapped) {
-        out += mapped;
-      }
-      else {
+      } else if (!isPropertyAccess) {
+        const mapped = onIdent?.(token, stack, lastSigToken);
+        if (mapped != null)
+          out += mapped;
+        else
+          out += value;
+      } else { 
         out += value;
       }
     } else {
