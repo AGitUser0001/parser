@@ -49,7 +49,16 @@ export function emit<K extends StateName>(
     }
   }
   let code = '';
-  let parserv = emitFn(ctx, parser);
+
+  const externs = new Map<string, Fn<Func, FnT<K, unknown>>>([
+    ['parse', parser]
+  ]);
+  for (const [name, fn] of externs) {
+    const v = emitValue(ctx, fn, name);
+    if (!ctx.vars.has(name)) {
+      ctx.vars.set(name, v);
+    }
+  }
 
   const refsTable = new Map<string, Map<string, number>>();
   for (const [name, text] of ctx.vars)
@@ -91,17 +100,22 @@ export function emit<K extends StateName>(
     }
   };
   for (const [name, text] of ctx.vars) {
-    if (IS_SIMPLE_RE.test(text)) {
-      rewrite(new Map([[name, text]]));
-    } else if (IS_VAR_RE.test(text)) {
+    if (IS_VAR_RE.test(text)) {
       ctx.vars.set(name, ctx.vars.get(text)!);
       rewrite(new Map([[text, name]]));
+      continue;
+    } else if (externs.has(name)) {
+      continue;
+    } else if (IS_SIMPLE_RE.test(text)) {
+      rewrite(new Map([[name, text]]));
     } else if (totalRefs.get(name)?.[0] === 1) {
       rewrite(new Map([[name, text]]));
     }
   }
 
   for (const [name, text] of ctx.vars) {
+    if (externs.has(name))
+      code += 'export ';
     code += `const ${name} = ${text};\n`;
   }
   const fns = [
@@ -114,13 +128,12 @@ export function emit<K extends StateName>(
     if (!refs) continue;
     code += `${fn.toString()}\n`;
   }
-  code += `export const parse = ${parserv};`;
   return code;
 }
 
 function emitValue<K extends StateName>(
   ctx: EmitCtx<K>,
-  value: O<FnT<K, unknown>>,
+  value: O<FnT<K, unknown>> | Fn<Func, FnT<K, unknown>>,
   suggestedKey?: string
 ): string {
   if (ctx.memoMap.has(value))
