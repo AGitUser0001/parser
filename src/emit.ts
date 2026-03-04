@@ -44,7 +44,7 @@ export function emit<K extends StateName>(
   for (const [stateKey, state] of states) {
     const nK = `State${ctx.name()}${stateKey.replaceAll(INVALID_RE, '')}`;
     const v = emitValue(ctx, state, nK);
-    if (!ctx.vars.has(nK)) { 
+    if (!ctx.vars.has(nK)) {
       ctx.vars.set(nK, v);
     }
   }
@@ -109,7 +109,7 @@ export function emit<K extends StateName>(
     improves_error,
     skipWs,
   ];
-  for (const fn of fns) { 
+  for (const fn of fns) {
     const refs = totalRefs.get(fn.name)?.[1];
     if (!refs) continue;
     code += `${fn.toString()}\n`;
@@ -168,7 +168,8 @@ function emitFn<K extends StateName>(
     const v = emitValue(ctx, val, `${n}${key}`);
     k.set(key, v);
   }
-  return transformCode(value.toString(), k, ctx.annotations);
+  let inputStr = arrowFunctionToBlock(value.toString());
+  return transformCode(inputStr, k, ctx.annotations);
 }
 
 import tokenize, { type Token } from "../node_modules/js-tokens/index.js";
@@ -185,7 +186,7 @@ function transformCode(code: string, kmap: Map<string, string>, annotations: boo
 
 function codeRefs(code: string, indirect = true): Map<string, number> {
   let refs = new Map<string, number>();
-  mapCode(code, (tok, stack) => {
+  mapCode(code, (tok, { stack }) => {
     if (!indirect && stack.includes('block'))
       return;
     const orig = refs.get(tok.value) ?? 0;
@@ -194,12 +195,37 @@ function codeRefs(code: string, indirect = true): Map<string, number> {
   return refs;
 }
 
+function arrowFunctionToBlock(code: string): string {
+  let transformed = false;
+  let result = `${mapCode(code, null, (tok, { stack, tokens, i, peek }) => {
+    if (tok.type === "Punctuator" && tok.value === "=>" && stack.length === 0) {
+      let nextIdx = peek(i + 1);
+
+      if (tokens[nextIdx] && tokens[nextIdx].type === 'Punctuator' &&
+        tokens[nextIdx].value === '{') {
+        return;
+      }
+
+      transformed = true;
+      return "=>{return ";
+    }
+  })}\n}`; // handles comments - avoids //comment}
+  if (transformed) return result;
+  return code;
+}
+
 type StackT = Array<"block" | "objectKey" | "objectValue" | "bracket" | "paren">;
-type CallbackT = (tok: Token, stack: StackT, lastSigToken: Token | null) => string | void;
+type CallbackT = (tok: Token, info: {
+  stack: StackT,
+  lastSigToken: Token | null,
+  tokens: Token[],
+  i: number,
+  peek(n: number): number
+}) => string | void;
 function mapCode(
   code: string,
-  onIdent?: CallbackT,
-  onTok?: CallbackT
+  onIdent?: CallbackT | null,
+  onTok?: CallbackT | null
 ): string {
   const tokens = Array.from(tokenize(code));
   let out = "";
@@ -207,12 +233,21 @@ function mapCode(
   let lastSigToken: Token | null = null;
   const isWS = (type: Token['type']) =>
     type === "WhiteSpace" || type.includes("Comment") || type === "LineTerminatorSequence";
+  const info = () => ({ stack, lastSigToken, tokens, i, peek });
+  const peek = (n: number) => {
+    let nextIdx = n;
+    while (tokens[nextIdx] && isWS(tokens[nextIdx].type)) {
+      nextIdx++;
+    }
+    return nextIdx;
+  }
 
-  for (let i = 0; i < tokens.length; i++) {
+  let i = 0;
+  for (; i < tokens.length; i++) {
     const token = tokens[i];
     const { type, value } = token;
 
-    const replacement = onTok?.(token, stack, lastSigToken);
+    const replacement = onTok?.(token, info());
     if (replacement != null) {
       out += replacement;
       continue;
@@ -252,15 +287,12 @@ function mapCode(
       const isPropertyAccess = lastSigToken?.value === "." || lastSigToken?.value === "?.";
 
       if (scope === "objectKey" && !isPropertyAccess) {
-        let nextIdx = i + 1;
-        while (tokens[nextIdx] && isWS(tokens[nextIdx].type)) {
-          nextIdx++;
-        }
+        let nextIdx = peek(i + 1);
 
         if (tokens[nextIdx] &&
           tokens[nextIdx].type === 'Punctuator' &&
           [',', '}', '='].includes(tokens[nextIdx].value)) {
-          const mapped = onIdent?.(token, stack, lastSigToken);
+          const mapped = onIdent?.(token, info());
           if (mapped != null)
             out += `${value}: ${mapped}`; // Shorthand expansion
           else
@@ -269,12 +301,12 @@ function mapCode(
           out += value;
         }
       } else if (!isPropertyAccess) {
-        const mapped = onIdent?.(token, stack, lastSigToken);
+        const mapped = onIdent?.(token, info());
         if (mapped != null)
           out += mapped;
         else
           out += value;
-      } else { 
+      } else {
         out += value;
       }
     } else {

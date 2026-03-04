@@ -196,10 +196,7 @@ function buildTerm<K extends StateName>(
   if (term instanceof RegExp) {
     const x = buildRegex(ctx, term);
     if (lexical)
-      return ctx.logic((rc, pos) => {
-        const result = x(rc, pos);
-        return result;
-      }, { x });
+      return ctx.logic((rc, pos) => x(rc, pos), { x });
     return ctx.logic((rc, pos) => {
       let ws;
       [ws, pos] = skipWs(rc, pos);
@@ -220,10 +217,7 @@ function buildTerm<K extends StateName>(
 
     let f: ReturnType<typeof ctx.logic>;
     if (lexical)
-      return f = ctx.logic((rc, pos) => {
-        const result = x(rc, pos);
-        return result;
-      }, { x });
+      return f = ctx.logic((rc, pos) => x(rc, pos), { x });
     return f = ctx.logic((rc, pos) => {
       let ws;
       [ws, pos] = skipWs(rc, pos);
