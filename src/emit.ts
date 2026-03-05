@@ -60,21 +60,36 @@ export function emit<K extends StateName>(
     }
   }
 
-  const keys = [...ctx.vars.keys()];
+  const rows: (string | null)[] = [...ctx.vars.keys()];
+  const indexToRowName = new Map<string, number>(
+    rows.map((k, i) => [k!, i])
+  );
+  const cols: string[] = [];
+  const indexToColName = new Map<string, number>();
+  const table: number[][] = Array.from(rows, () => []);
+  const directTable: number[][] = Array.from(rows, () => []);
+  const getCol = (name: string) => {
+    let col = indexToColName.get(name);
+    if (col === undefined) {
+      col = cols.push(name) - 1;
+      indexToColName.set(name, col);
+    };
+    return col;
+  }
+
   function rewrite(kmap: Map<string, string>) {
-    for (const [name, refs] of allRefsTable) {
+    const colIds = [...kmap.keys()].map(k => indexToColName.get(k)).filter(i => i !== undefined);
+    for (let i = 0; i < rows.length; i++) {
+      const name = rows[i];
+      if (name == null) continue;
       if (kmap.has(name)) {
         ctx.vars.delete(name);
-        const idx = keys.indexOf(name);
-        if (idx !== -1)
-          keys.splice(idx, 1);
-        allRefsTable.delete(name);
-        directRefsTable.delete(name);
+        delRow(name);
         continue;
       }
       let hasRef = false;
-      for (const name of kmap.keys()) {
-        if (refs.get(name)) {
+      for (const col of colIds) {
+        if (table[i][col] ?? 0 > 0) {
           hasRef = true;
           break;
         }
@@ -83,57 +98,93 @@ export function emit<K extends StateName>(
       const text = ctx.vars.get(name)!;
       const newText = transformCode(text, kmap, false);
       ctx.vars.set(name, newText);
-      allRefsTable.set(name, codeRefs(newText));
-      directRefsTable.set(name, codeRefs(newText, false));
+      updateRefs(name, newText);
     }
   }
-
-  const allRefsTable = new Map<string, Map<string, number>>();
-  const directRefsTable = new Map<string, Map<string, number>>();
-  const totalRefs = new Map<string, [direct: number, all: number]>();
-  for (const [name, text] of ctx.vars) {
+  function updateRefs(name: string, text: string) {
+    const row = indexToRowName.get(name)!;
     const drefs = codeRefs(text, false);
     const allRefs = codeRefs(text, true);
     for (const [n, r] of drefs) {
-      const orig = totalRefs.get(n) || [0, 0];
-      totalRefs.set(n, [orig[0] + r, orig[1]]);
+      const col = getCol(n);
+      directTable[row][col] = r;
     }
     for (const [n, r] of allRefs) {
-      const orig = totalRefs.get(n) || [0, 0];
-      totalRefs.set(n, [orig[0], orig[1] + r]);
+      const col = getCol(n);
+      table[row][col] = r;
     }
-    allRefsTable.set(name, allRefs);
-    directRefsTable.set(name, drefs);
+  }
+  function delRow(name: string) {
+    const row = indexToRowName.get(name);
+    if (!row) return;
+    rows[row] = null;
+    table[row].length = 0;
+    table[row].length = cols.length;
+    directTable[row].length = 0;
+    directTable[row].length = cols.length;
+    indexToRowName.delete(name);
+  }
+  function swapRows(a: string, b: string) {
+    const row1 = indexToRowName.get(a)!;
+    const row2 = indexToRowName.get(b)!;
+    [rows[row1], rows[row2]] = [rows[row2], rows[row1]];
+    [table[row1], table[row2]] = [table[row2], table[row1]];
+    [directTable[row1], directTable[row2]] = [directTable[row2], directTable[row1]];
+    indexToRowName.set(a, row2);
+    indexToRowName.set(b, row1);
+  }
+  function refCount(name: string, indirect = true): number {
+    const col = indexToColName.get(name);
+    if (!col) return 0;
+
+    const t = indirect ? table : directTable;
+    let count = 0;
+    for (let i = 0; i < rows.length; i++) {
+      count += t[i][col] ?? 0;
+    }
+    return count;
+  }
+
+  for (const [name, text] of ctx.vars) {
+    updateRefs(name, text);
   }
 
   for (const [name, text] of ctx.vars) {
     if (IS_VAR_RE.test(text)) {
       ctx.vars.set(name, ctx.vars.get(text)!);
-      const nidx = keys.indexOf(name);
-      const tidx = keys.indexOf(text);
-      [keys[nidx], keys[tidx]] = [keys[tidx], keys[nidx]];
+      swapRows(name, text);
       rewrite(new Map([[text, name]]));
       continue;
     } else if (externs.has(name)) {
       continue;
     } else if (IS_SIMPLE_RE.test(text)) {
       rewrite(new Map([[name, text]]));
-    } else if (totalRefs.get(name)?.[0] === 1 && totalRefs.get(name)?.[1] === 1) {
-      const segmentAfter = new Set(keys.slice(keys.indexOf(name)));
-      const refs = directRefsTable.get(name)!;
-      let ok = true;
-      for (const [n, r] of refs) {
-        if (r && segmentAfter.has(n)) {
-          ok = false;
-          break;
+    } else {
+      const directRefs = refCount(name, false);
+      if (directRefs === 1) {
+        const allRefs = refCount(name, true);
+        if (allRefs === 1) {
+          const row = indexToRowName.get(name)!;
+          const segmentAfter = rows.slice(row)
+            .filter(k => k != null)
+            .map(k => indexToColName.get(k))
+            .filter(i => i != undefined);
+          let ok = true;
+          for (const col of segmentAfter) {
+            if (directTable[row][col] ?? 0 > 0) {
+              ok = false;
+              break;
+            }
+          }
+          if (ok)
+            rewrite(new Map([[name, text]]));
         }
       }
-      if (ok)
-        rewrite(new Map([[name, text]]));
     }
   }
 
-  for (const name of keys) {
+  for (const name of rows) {
+    if (name == null) continue;
     const text = ctx.vars.get(name)!;
     if (externs.has(name))
       code += 'export ';
@@ -145,8 +196,8 @@ export function emit<K extends StateName>(
     skipWs,
   ];
   for (const fn of fns) {
-    const refs = totalRefs.get(fn.name)?.[1];
-    if (!refs) continue;
+    const refs = refCount(fn.name);
+    if (refs < 1) continue;
     code += `${fn.toString()}\n`;
   }
   return code;
