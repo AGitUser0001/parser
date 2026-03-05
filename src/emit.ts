@@ -231,6 +231,7 @@ type StackT = Array<"block" | "objectKey" | "objectValue" | "bracket" | "paren">
 type CallbackT = (tok: Token, info: {
   stack: StackT,
   lastSigToken: Token | null,
+  nlSinceLastSigToken: boolean,
   tokens: Token[],
   i: number,
   peek(n: number): number
@@ -244,9 +245,10 @@ function mapCode(
   let out = "";
   const stack: StackT = [];
   let lastSigToken: Token | null = null;
+  let nlSinceLastSigToken = false;
   const isWS = (type: Token['type']) =>
     type === "WhiteSpace" || type.includes("Comment") || type === "LineTerminatorSequence";
-  const info = () => ({ stack, lastSigToken, tokens, i, peek });
+  const info = () => ({ stack, lastSigToken, nlSinceLastSigToken, tokens, i, peek });
   const peek = (n: number) => {
     let nextIdx = n;
     while (tokens[nextIdx] && isWS(tokens[nextIdx].type)) {
@@ -265,6 +267,8 @@ function mapCode(
       out += replacement;
       continue;
     }
+    if (type === "LineTerminatorSequence")
+      nlSinceLastSigToken = true;
     if (isWS(type)) {
       out += value;
       continue;
@@ -275,7 +279,18 @@ function mapCode(
         // It is a BLOCK if it follows these specific patterns:
         const isBlock = !lastSigToken || (
           (lastSigToken.type === "Punctuator" && [")", ";", "=>"].includes(lastSigToken.value)) ||
-          (lastSigToken.type === "IdentifierName" && ["else", "try", "finally", "do"].includes(lastSigToken.value))
+          (lastSigToken.type === "IdentifierName" && ![
+            "async", "await", /*"break",*/ "case", /*"catch",*/ /*"class",*/ "const", /*"continue",*/
+            /*"debugger",*/ "default", "delete", /*"do",*/ /*"else",*/ "export", /*"extends",*/
+            /*"false",*/ /*"finally",*/ "for", "function", "if", "import", "in", "instanceof",
+            "let", "new", /*"null",*/ "return", "super", "switch", /*"static",*/ /*"this"*/,
+            "throw", /*"true",*/ /*"try",*/ "typeof", "var", "void", "while", "with", "yield",
+            /*"enum",*/ /*"implements",*/ /*"interface",*/ "package", "private", "protected", "public"
+          ].includes(lastSigToken.value)) ||
+          (lastSigToken.type === "IdentifierName" && nlSinceLastSigToken && [
+            'return', 'yield'
+          ].includes(lastSigToken.value)) ||
+          (lastSigToken.type !== "Punctuator" && lastSigToken.type !== "IdentifierName")
         );
 
         stack.push(isBlock ? "block" : "objectKey");
@@ -321,11 +336,20 @@ function mapCode(
           out += value;
       } else {
         out += value;
+        nlSinceLastSigToken = false;
+        continue;
+      }
+      if (lastSigToken &&
+        lastSigToken.type === "IdentifierName" &&
+        ['class', 'interface', 'extends', 'implements', 'enum'].includes(lastSigToken.value)) {
+        nlSinceLastSigToken = false;
+        continue;
       }
     } else {
       out += value;
     }
 
+    nlSinceLastSigToken = false;
     lastSigToken = token;
   }
 
