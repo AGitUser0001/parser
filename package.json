@@ -6,15 +6,24 @@
   "author": "AGitUser0001",
   "type": "module",
   "exports": {
-    ".": "./dist/index.js",
-    "./dsl": "./dist/dsl/dsl.js",
-    "./graph": "./dist/graph.js",
-    "./parser": "./dist/parser.js",
-    "./emit": "./dist/emit.js",
-    "./nodes": "./dist/nodes.js",
-    "./semantics": "./dist/semantics.js",
-    "./tokenize": "./dist/tokenize.js",
-    "./scc": "./dist/scc.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "module-sync": "./dist/index.js",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "module-sync": "./dist/*.js",
+      "import": "./dist/*.js",
+      "default": "./dist/*.js"
+    },
+    "./dsl": {
+      "types": "./dist/dsl/dsl.d.ts",
+      "module-sync": "./dist/dsl/dsl.js",
+      "import": "./dist/dsl/dsl.js",
+      "default": "./dist/dsl/dsl.js"
+    }
   },
   "scripts": {
     "build": "tsgo",
