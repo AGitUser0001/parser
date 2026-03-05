@@ -89,7 +89,7 @@ export function emit<K extends StateName>(
       }
       let hasRef = false;
       for (const col of colIds) {
-        if (table[i][col] ?? 0 > 0) {
+        if ((table[i][col] ?? 0) > 0) {
           hasRef = true;
           break;
         }
@@ -170,7 +170,7 @@ export function emit<K extends StateName>(
             .filter(i => i != undefined);
           let ok = true;
           for (const col of segmentAfter) {
-            if (directTable[row][col] ?? 0 > 0) {
+            if ((directTable[row][col] ?? 0) > 0) {
               ok = false;
               break;
             }
