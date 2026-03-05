@@ -299,7 +299,7 @@ function mapCode(
       if (value === "{") {
         // It is a BLOCK if it follows these specific patterns:
         const isBlock = !lastSigToken || (
-          (lastSigToken.type === "Punctuator" && [")", ";", "=>"].includes(lastSigToken.value)) ||
+          (lastSigToken.type === "Punctuator" && [")", ";", "=>", ']', '}', '++', '--'].includes(lastSigToken.value)) ||
           (lastSigToken.type === "IdentifierName" && ![
             "async", "await", /*"break",*/ "case", /*"catch",*/ /*"class",*/ "const", /*"continue",*/
             /*"debugger",*/ "default", "delete", /*"do",*/ /*"else",*/ "export", /*"extends",*/
