@@ -60,10 +60,12 @@ export function emit<K extends StateName>(
     }
   }
 
+  let keys = [...ctx.vars.keys()];
   function rewrite(kmap: Map<string, string>) {
     for (const [name, refs] of refsTable) {
       if (kmap.has(name)) {
         ctx.vars.delete(name);
+        keys.splice(keys.indexOf(name), 1);
         refsTable.delete(name);
         continue;
       }
@@ -101,6 +103,7 @@ export function emit<K extends StateName>(
   for (const [name, text] of ctx.vars) {
     if (IS_VAR_RE.test(text)) {
       ctx.vars.set(name, ctx.vars.get(text)!);
+      keys[keys.indexOf(text)] = name;
       rewrite(new Map([[text, name]]));
       continue;
     } else if (externs.has(name)) {
@@ -113,7 +116,8 @@ export function emit<K extends StateName>(
     }
   }
 
-  for (const [name, text] of ctx.vars) {
+  for (const name of keys) {
+    const text = ctx.vars.get(name)!;
     if (externs.has(name))
       code += 'export ';
     code += `const ${name} = ${text};\n`;
