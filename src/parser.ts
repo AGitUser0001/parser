@@ -215,7 +215,7 @@ function buildTerm<K extends StateName>(
       if (f.resources) f.resources.x = x;
     });
 
-    let f: ReturnType<typeof ctx.logic>;
+    let f: RV<K>;
     if (lexical)
       return f = ctx.logic((rc, pos) => x(rc, pos), { x });
     return f = ctx.logic((rc, pos) => {
