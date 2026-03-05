@@ -103,13 +103,12 @@ export function emit<K extends StateName>(
   }
   function updateRefs(name: string, text: string) {
     const row = indexToRowName.get(name)!;
-    const drefs = codeRefs(text, false);
-    const allRefs = codeRefs(text, true);
+    const { direct: drefs, indirect: refs } = codeRefs(text);
     for (const [n, r] of drefs) {
       const col = getCol(n);
       directTable[row][col] = r;
     }
-    for (const [n, r] of allRefs) {
+    for (const [n, r] of refs) {
       const col = getCol(n);
       table[row][col] = r;
     }
@@ -161,9 +160,9 @@ export function emit<K extends StateName>(
       rewrite(new Map([[name, text]]));
     } else {
       const directRefs = refCount(name, false);
-      if (directRefs === 1) {
+      if (directRefs <= 1) {
         const allRefs = refCount(name, true);
-        if (allRefs === 1) {
+        if (allRefs === directRefs) {
           const row = indexToRowName.get(name)!;
           const segmentAfter = rows.slice(row)
             .filter(k => k != null)
@@ -269,15 +268,18 @@ function transformCode(code: string, kmap: Map<string, string>, annotations: boo
   });
 }
 
-function codeRefs(code: string, indirect = true): Map<string, number> {
+function codeRefs(code: string): { direct: Map<string, number>, indirect: Map<string, number> } {
   let refs = new Map<string, number>();
+  let directRefs = new Map<string, number>();
   mapCode(code, (tok, { stack }) => {
-    if (!indirect && stack.includes('block'))
-      return;
     const orig = refs.get(tok.value) ?? 0;
     refs.set(tok.value, orig + 1);
+    if (stack.includes('block'))
+      return;
+    const dorig = directRefs.get(tok.value) ?? 0;
+    directRefs.set(tok.value, dorig + 1);
   });
-  return refs;
+  return { direct: directRefs, indirect: refs };
 }
 
 function arrowFunctionToBlock(code: string): string {
