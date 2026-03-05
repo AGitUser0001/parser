@@ -60,13 +60,14 @@ export function emit<K extends StateName>(
     }
   }
 
-  let keys = [...ctx.vars.keys()];
+  const keys = [...ctx.vars.keys()];
   function rewrite(kmap: Map<string, string>) {
-    for (const [name, refs] of refsTable) {
+    for (const [name, refs] of allRefsTable) {
       if (kmap.has(name)) {
         ctx.vars.delete(name);
         keys.splice(keys.indexOf(name), 1);
-        refsTable.delete(name);
+        allRefsTable.delete(name);
+        directRefsTable.delete(name);
         continue;
       }
       let hasRef = false;
@@ -80,16 +81,18 @@ export function emit<K extends StateName>(
       const text = ctx.vars.get(name)!;
       const newText = transformCode(text, kmap, false);
       ctx.vars.set(name, newText);
-      refsTable.set(name, codeRefs(newText));
+      allRefsTable.set(name, codeRefs(newText));
+      directRefsTable.set(name, codeRefs(newText, false));
     }
   }
 
-  const refsTable = new Map<string, Map<string, number>>();
+  const allRefsTable = new Map<string, Map<string, number>>();
+  const directRefsTable = new Map<string, Map<string, number>>();
   const totalRefs = new Map<string, [direct: number, all: number]>();
   for (const [name, text] of ctx.vars) {
-    const refs = codeRefs(text, false);
+    const drefs = codeRefs(text, false);
     const allRefs = codeRefs(text, true);
-    for (const [n, r] of refs) {
+    for (const [n, r] of drefs) {
       const orig = totalRefs.get(n) || [0, 0];
       totalRefs.set(n, [orig[0] + r, orig[1]]);
     }
@@ -97,7 +100,8 @@ export function emit<K extends StateName>(
       const orig = totalRefs.get(n) || [0, 0];
       totalRefs.set(n, [orig[0], orig[1] + r]);
     }
-    refsTable.set(name, allRefs);
+    allRefsTable.set(name, allRefs);
+    directRefsTable.set(name, drefs);
   }
 
   for (const [name, text] of ctx.vars) {
@@ -111,8 +115,16 @@ export function emit<K extends StateName>(
     } else if (IS_SIMPLE_RE.test(text)) {
       rewrite(new Map([[name, text]]));
     } else if (totalRefs.get(name)?.[0] === 1 && totalRefs.get(name)?.[1] === 1) {
-      // TODO: Potential bug with reordering
-      if (!refsTable.get(name)!.get(name))
+      const segmentAfter = new Set(keys.slice(keys.indexOf(name)));
+      const refs = directRefsTable.get(name)!;
+      let ok = true;
+      for (const [n, r] of refs) {
+        if (r && segmentAfter.has(n)) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok)
         rewrite(new Map([[name, text]]));
     }
   }
