@@ -160,7 +160,7 @@ export function emit<K extends StateName>(
       rewrite(new Map([[name, text]]));
     } else {
       const directRefs = refCount(name, false);
-      if (directRefs <= 1) {
+      if (directRefs === 1) {
         const allRefs = refCount(name, true);
         if (allRefs === directRefs) {
           const row = indexToRowName.get(name)!;
