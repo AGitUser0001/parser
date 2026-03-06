@@ -104,10 +104,12 @@ export function emit<K extends StateName>(
   function updateRefs(name: string, text: string) {
     const row = indexToRowName.get(name)!;
     const { direct: drefs, indirect: refs } = codeRefs(text);
+    directTable[row].fill(0);
     for (const [n, r] of drefs) {
       const col = getCol(n);
       directTable[row][col] = r;
     }
+    table[row].fill(0);
     for (const [n, r] of refs) {
       const col = getCol(n);
       table[row][col] = r;
@@ -117,10 +119,8 @@ export function emit<K extends StateName>(
     const row = indexToRowName.get(name);
     if (!row) return;
     rows[row] = null;
-    table[row].length = 0;
-    table[row].length = cols.length;
-    directTable[row].length = 0;
-    directTable[row].length = cols.length;
+    table[row].fill(0);
+    directTable[row].fill(0);
     indexToRowName.delete(name);
   }
   function swapRows(a: string, b: string) {
