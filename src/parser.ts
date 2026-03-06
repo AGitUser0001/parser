@@ -35,6 +35,7 @@ interface ParserCtx<K extends StateName> {
 
   readonly sccOf: MapView<StateKey<K>, SccId>;
   readonly sccMembers: MapView<SccId, StateKey<K>[]>;
+  readonly sccSolvers: Map<SccId, Fn<FnT<K, void>, FnT<K>>>;
 
   readonly lexicalStates: Set<StateKey<K>>;
   bind(state: StateKey<K>, cb: (val: RV<K>) => void): void;
@@ -114,6 +115,9 @@ function solveSCC<K extends StateName>(
   ctx: ParserCtx<K>,
   sccId: SccId
 ): Fn<FnT<K, void>, FnT<K>> {
+  const cached = ctx.sccSolvers.get(sccId);
+  if (cached) return cached;
+
   const group = ctx.sccMembers.get(sccId);
   if (!group || group.length === 0)
     throw new Error(`Internal error: invalid scc group for ${sccId}`, { cause: { ctx, sccId, group } });
@@ -125,10 +129,11 @@ function solveSCC<K extends StateName>(
     ev.push(x);
   }
 
+  let result;
   if (ev.length === 1) {
     const x = ev[0];
     const st = group[0];
-    return ctx.logic((rc, pos) => {
+    result = ctx.logic((rc, pos) => {
       let entry = rc.getMemo(st, pos);
       if (!entry) {
         entry = { result: { type: 'none', ok: false, pos, value: null } };
@@ -144,36 +149,39 @@ function solveSCC<K extends StateName>(
         } else return;
       }
     }, { x, st });
-  }
-
-  return ctx.logic((rc, pos) => {
-    let entries: MemoEntry[] = Array(group.length);
-    for (let i = 0; i < group.length; i++) {
-      const st = group[i];
-      let memo = rc.getMemo(st, pos);
-      if (!memo) {
-        memo = { result: { type: 'none', ok: false, pos, value: null } };
-        rc.setMemo(st, pos, memo);
-      }
-      entries[i] = memo;
-    }
-    let changed = true;
-    while (changed) {
-      changed = false;
-
+  } else {
+    result = ctx.logic((rc, pos) => {
+      let entries: MemoEntry[] = Array(group.length);
       for (let i = 0; i < group.length; i++) {
-        const entry = entries[i];
-        const candidate = ev[i](rc, pos);
+        const st = group[i];
+        let memo = rc.getMemo(st, pos);
+        if (!memo) {
+          memo = { result: { type: 'none', ok: false, pos, value: null } };
+          rc.setMemo(st, pos, memo);
+        }
+        entries[i] = memo;
+      }
+      let changed = true;
+      while (changed) {
+        changed = false;
 
-        if (improves(candidate, entry.result)) {
-          entry.result = candidate;
-          changed = true;
-        } else if (improves_error(candidate, entry.result)) {
-          entry.result = candidate;
+        for (let i = 0; i < group.length; i++) {
+          const entry = entries[i];
+          const candidate = ev[i](rc, pos);
+
+          if (improves(candidate, entry.result)) {
+            entry.result = candidate;
+            changed = true;
+          } else if (improves_error(candidate, entry.result)) {
+            entry.result = candidate;
+          }
         }
       }
-    }
-  }, { ev, group });
+    }, { ev, group });
+  }
+
+  ctx.sccSolvers.set(sccId, result);
+  return result;
 }
 
 function evalStateBody<K extends StateName>(
@@ -630,6 +638,7 @@ export function build<K extends StateName>(
     graph,
     sccOf: graph.sccOf,
     sccMembers: graph.sccMembers,
+    sccSolvers: new Map(),
     lexicalStates,
     bind(state, cb) {
       toBind.get(state)!.push(cb);
