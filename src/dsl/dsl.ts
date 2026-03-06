@@ -34,7 +34,7 @@ export const grammar = {
   Terminal: ['prefixes', ['terminal', 'string'], '#postfixes'],
 
   postfixes: '*postfix',
-  postfix: />[A-Za-z0-9_]+(,[A-Za-z0-9_]+)*|[*?+@/]/,
+  postfix: /[*?+@/]/,
 
   prefixes: '*prefix',
   prefix: /[#%!&$]/,
