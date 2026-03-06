@@ -196,7 +196,7 @@ function buildTerm<K extends StateName>(
   if (term instanceof RegExp) {
     const x = buildRegex(ctx, term);
     if (lexical)
-      return ctx.logic((rc, pos) => x(rc, pos), { x });
+      return x;
     return ctx.logic((rc, pos) => {
       let ws;
       [ws, pos] = skipWs(rc, pos);
