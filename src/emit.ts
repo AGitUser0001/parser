@@ -303,14 +303,33 @@ function arrowFunctionToBlock(code: string): string {
 }
 
 type StackT = Array<"block" | "objectKey" | "objectValue" | "bracket" | "paren">;
-type CallbackT = (tok: Token, info: {
+type CallbackT = (tok: Token, info: InfoT) => string | void;
+type InfoT = {
   stack: StackT,
   lastSigToken: Token | null,
   nlSinceLastSigToken: boolean,
   tokens: Token[],
   i: number,
   peek(n: number): number
-}) => string | void;
+};
+function detectASI({ lastSigToken, nlSinceLastSigToken, stack }: InfoT) {
+  return !lastSigToken || (
+    (lastSigToken.type === "Punctuator" && nlSinceLastSigToken && [")", ']', '}', '++', '--'].includes(lastSigToken.value)) ||
+    (lastSigToken.type === "Punctuator" && [";", ')'/*sometimes*/].includes(lastSigToken.value)) ||
+    (lastSigToken.type === "Punctuator" && lastSigToken.value === '{' && stack.at(-1) === 'block') ||
+    (lastSigToken.type === "IdentifierName" && [
+      "catch", "class", "do", "else", "extends", "finally", "static", "try"
+    ].includes(lastSigToken.value)) ||
+    (lastSigToken.type === "IdentifierName" && nlSinceLastSigToken && ![
+      "break", "case", "catch", "class", "const", "continue", "debugger", "default", "delete", "do", "else", "export", "extends", "false", "finally", "for", "function", "if", "import", "in", "instanceof", "new", "null", "return", "super", "switch", "this", "throw", "true", "try", "typeof", "var", "void", "while", "with", "await"
+    ].includes(lastSigToken.value)) ||
+    (lastSigToken.type === "IdentifierName" && nlSinceLastSigToken && [
+      'return', 'yield', 'break', 'continue', 'debugger', 'false', 'null', 'this',
+      'throw', 'true'
+    ].includes(lastSigToken.value)) ||
+    (lastSigToken.type !== "Punctuator" && lastSigToken.type !== "IdentifierName")
+  );
+}
 function mapCode(
   code: string,
   onIdent?: CallbackT | null,
@@ -323,7 +342,7 @@ function mapCode(
   let nlSinceLastSigToken = false;
   const isWS = (type: Token['type']) =>
     type === "WhiteSpace" || type.includes("Comment") || type === "LineTerminatorSequence";
-  const info = () => ({ stack, lastSigToken, nlSinceLastSigToken, tokens, i, peek });
+  const info = (): InfoT => ({ stack, lastSigToken, nlSinceLastSigToken, tokens, i, peek });
   const peek = (n: number) => {
     let nextIdx = n;
     while (tokens[nextIdx] && isWS(tokens[nextIdx].type)) {
@@ -351,23 +370,10 @@ function mapCode(
 
     if (type === "Punctuator") {
       if (value === "{") {
-        // It is a BLOCK if it follows these specific patterns:
-        const isBlock = !lastSigToken || (
-          (lastSigToken.type === "Punctuator" && [")", ";", "=>", ']', '}', '++', '--'].includes(lastSigToken.value)) ||
-          (lastSigToken.type === "IdentifierName" && ![
-            "async", "await", /*"break",*/ "case", /*"catch",*/ /*"class",*/ "const", /*"continue",*/
-            /*"debugger",*/ "default", "delete", /*"do",*/ /*"else",*/ "export", /*"extends",*/
-            /*"false",*/ /*"finally",*/ "for", "function", "if", "import", "in", "instanceof",
-            "let", "new", /*"null",*/ "return", "super", "switch", /*"static",*/ /*"this"*/,
-            "throw", /*"true",*/ /*"try",*/ "typeof", "var", "void", "while", "with", "yield",
-            /*"enum",*/ /*"implements",*/ /*"interface",*/ "package", "private", "protected", "public"
-          ].includes(lastSigToken.value)) ||
-          (lastSigToken.type === "IdentifierName" && nlSinceLastSigToken && [
-            'return', 'yield'
-          ].includes(lastSigToken.value)) ||
-          (lastSigToken.type !== "Punctuator" && lastSigToken.type !== "IdentifierName")
+        const isBlock = detectASI(info()) || (
+          lastSigToken && lastSigToken.type === 'Punctuator'
+          && lastSigToken.value === '=>'
         );
-
         stack.push(isBlock ? "block" : "objectKey");
       } else if (value === "}") {
         stack.pop();
@@ -386,12 +392,22 @@ function mapCode(
       }
       out += value;
     } else if (type === "IdentifierName") {
+      let nextIdx = peek(i + 1);
+
+      if (tokens[nextIdx] &&
+        tokens[nextIdx].type === 'Punctuator' &&
+        tokens[nextIdx].value === ':') {
+        const isLabel = detectASI(info());
+        if (isLabel) {
+          nlSinceLastSigToken = false;
+          continue;
+        }
+      }
+
       const scope = stack[stack.length - 1];
       const isPropertyAccess = lastSigToken?.value === "." || lastSigToken?.value === "?.";
 
       if (scope === "objectKey" && !isPropertyAccess) {
-        let nextIdx = peek(i + 1);
-
         if (tokens[nextIdx] &&
           tokens[nextIdx].type === 'Punctuator' &&
           [',', '}', '='].includes(tokens[nextIdx].value)) {
@@ -404,6 +420,7 @@ function mapCode(
           out += value;
         }
       } else if (!isPropertyAccess) {
+
         const mapped = onIdent?.(token, info());
         if (mapped != null)
           out += mapped;
@@ -416,7 +433,7 @@ function mapCode(
       }
       if (lastSigToken &&
         lastSigToken.type === "IdentifierName" &&
-        ['class', 'interface', 'extends', 'implements', 'enum'].includes(lastSigToken.value)) {
+        ['class', 'extends'].includes(lastSigToken.value)) {
         nlSinceLastSigToken = false;
         continue;
       }
