@@ -116,8 +116,7 @@ export function emit<K extends StateName>(
     }
   }
   function delRow(name: string) {
-    const row = nameToRow.get(name);
-    if (!row) return;
+    const row = nameToRow.get(name)!;
     rows[row] = null;
     table[row].fill(0);
     directTable[row].fill(0);
@@ -140,7 +139,7 @@ export function emit<K extends StateName>(
     const arr: string[] = [];
     for (let i = 0; i < rows.length; i++) {
       const label = rows[i];
-      if (!label) continue;
+      if (label == null) continue;
       const count = t[i][col] ?? 0;
       for (let j = 0; j < count; j++)
         arr.push(label);
