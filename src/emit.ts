@@ -24,7 +24,6 @@ interface EmitCtx<K extends StateName> {
 };
 
 const INVALID_RE = /[^$_\p{ID_Start}\p{ID_Continue}\u200c\u200d]+/ug;
-const IS_SIMPLE_RE = /^['"\d\-]|^(?:true|false|null|undefined)$/;
 const IS_VAR_RE = /^[$_\p{ID_Start}](?:[$_\u200C\u200D\p{ID_Continue}])*$/u;
 export function emit<K extends StateName>(
   parser: Parser<K>,
@@ -159,8 +158,6 @@ export function emit<K extends StateName>(
       continue;
     } else if (externs.has(name)) {
       continue;
-    } else if (IS_SIMPLE_RE.test(text)) {
-      rewrite(new Map([[name, text]]));
     } else {
       const refs = refsTo(name);
       if (refs.length === 1) {
