@@ -163,6 +163,7 @@ export function emit<K extends StateName>(
       if (directRefs === 1) {
         const allRefs = refCount(name, true);
         if (allRefs === directRefs) {
+          //TODO:
           const row = indexToRowName.get(name)!;
           const segmentAfter = rows.slice(row)
             .filter(k => k != null)
