@@ -61,24 +61,24 @@ export function emit<K extends StateName>(
   }
 
   const rows: (string | null)[] = [...ctx.vars.keys()];
-  const indexToRowName = new Map<string, number>(
+  const nameToRow = new Map<string, number>(
     rows.map((k, i) => [k!, i])
   );
   const cols: string[] = [];
-  const indexToColName = new Map<string, number>();
+  const nameToCol = new Map<string, number>();
   const table: number[][] = Array.from(rows, () => []);
   const directTable: number[][] = Array.from(rows, () => []);
   const getCol = (name: string) => {
-    let col = indexToColName.get(name);
+    let col = nameToCol.get(name);
     if (col === undefined) {
       col = cols.push(name) - 1;
-      indexToColName.set(name, col);
+      nameToCol.set(name, col);
     };
     return col;
   }
 
   function rewrite(kmap: Map<string, string>) {
-    const colIds = [...kmap.keys()].map(k => indexToColName.get(k)).filter(i => i !== undefined);
+    const colIds = [...kmap.keys()].map(k => nameToCol.get(k)).filter(i => i !== undefined);
     for (let i = 0; i < rows.length; i++) {
       const name = rows[i];
       if (name == null) continue;
@@ -102,7 +102,7 @@ export function emit<K extends StateName>(
     }
   }
   function updateRefs(name: string, text: string) {
-    const row = indexToRowName.get(name)!;
+    const row = nameToRow.get(name)!;
     const { direct: drefs, indirect: refs } = codeRefs(text);
     directTable[row].fill(0);
     for (const [n, r] of drefs) {
@@ -116,32 +116,36 @@ export function emit<K extends StateName>(
     }
   }
   function delRow(name: string) {
-    const row = indexToRowName.get(name);
+    const row = nameToRow.get(name);
     if (!row) return;
     rows[row] = null;
     table[row].fill(0);
     directTable[row].fill(0);
-    indexToRowName.delete(name);
+    nameToRow.delete(name);
   }
   function swapRows(a: string, b: string) {
-    const row1 = indexToRowName.get(a)!;
-    const row2 = indexToRowName.get(b)!;
+    const row1 = nameToRow.get(a)!;
+    const row2 = nameToRow.get(b)!;
     [rows[row1], rows[row2]] = [rows[row2], rows[row1]];
     [table[row1], table[row2]] = [table[row2], table[row1]];
     [directTable[row1], directTable[row2]] = [directTable[row2], directTable[row1]];
-    indexToRowName.set(a, row2);
-    indexToRowName.set(b, row1);
+    nameToRow.set(a, row2);
+    nameToRow.set(b, row1);
   }
-  function refCount(name: string, indirect = true): number {
-    const col = indexToColName.get(name);
-    if (!col) return 0;
+  function refsTo(name: string, indirect = true): string[] {
+    const col = nameToCol.get(name);
+    if (!col) return [];
 
     const t = indirect ? table : directTable;
-    let count = 0;
+    const arr: string[] = [];
     for (let i = 0; i < rows.length; i++) {
-      count += t[i][col] ?? 0;
+      const label = rows[i];
+      if (!label) continue;
+      const count = t[i][col] ?? 0;
+      for (let j = 0; j < count; j++)
+        arr.push(label);
     }
-    return count;
+    return arr;
   }
 
   for (const [name, text] of ctx.vars) {
@@ -159,15 +163,15 @@ export function emit<K extends StateName>(
     } else if (IS_SIMPLE_RE.test(text)) {
       rewrite(new Map([[name, text]]));
     } else {
-      const directRefs = refCount(name, false);
-      if (directRefs === 1) {
-        const allRefs = refCount(name, true);
-        if (allRefs === directRefs) {
-          //TODO:
-          const row = indexToRowName.get(name)!;
+      const refs = refsTo(name);
+      if (refs.length === 1) {
+        const drefs = refsTo(name, false);
+        if (refs.length === drefs.length) {
+          const refName = drefs[0];
+          const row = nameToRow.get(refName)!;
           const segmentAfter = rows.slice(row)
             .filter(k => k != null)
-            .map(k => indexToColName.get(k))
+            .map(k => nameToCol.get(k))
             .filter(i => i != undefined);
           let ok = true;
           for (const col of segmentAfter) {
@@ -196,8 +200,8 @@ export function emit<K extends StateName>(
     skipWs,
   ];
   for (const fn of fns) {
-    const refs = refCount(fn.name);
-    if (refs < 1) continue;
+    const refs = refsTo(fn.name);
+    if (refs.length < 1) continue;
     code += `${fn.toString()}\n`;
   }
   return code;
