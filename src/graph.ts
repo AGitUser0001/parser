@@ -186,8 +186,8 @@ export class Graph<K extends StateName> extends MapView<StateKey<K>, Sequence<K>
 };
 
 export function input_to_graph<
-  K_ extends StateName,
-  T extends Record<K_, State<K_>> = Record<K_, State<K_>>
+  KInput extends StateName,
+  T extends Record<KInput, State<KInput>> = Record<KInput, State<KInput>>
 >(input: T extends States<Extract<keyof T, StateName>> ? T : States<Extract<keyof T, StateName>>) {
   type K = Extract<keyof T, StateName>;
   const states: States<K> = input as States<K>;
