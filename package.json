@@ -12,6 +12,8 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./dsl/dsl": null,
+    "./shared": null,
     "./*": {
       "types": "./dist/*.d.ts",
       "module-sync": "./dist/*.js",
