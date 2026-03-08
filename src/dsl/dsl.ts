@@ -50,7 +50,7 @@ export const grammar = {
   }
 } as const;
 
-export const graph = input_to_graph<keyof typeof grammar>(grammar);
+export const graph = input_to_graph(grammar);
 
 type Data<K extends StateName> =
   | { t: 'states'; v: MutableStates<K>; }

@@ -185,8 +185,12 @@ export class Graph<K extends StateName> extends MapView<StateKey<K>, Sequence<K>
   }
 };
 
-export function input_to_graph<K extends StateName>(input: States<K>) {
-  const states: States<K> = input as States<any>;
+export function input_to_graph<
+  K_ extends StateName,
+  T extends Record<K_, State<K_>> = Record<K_, State<K_>>
+>(input: T extends States<Extract<keyof T, StateName>> ? T : States<Extract<keyof T, StateName>>) {
+  type K = Extract<keyof T, StateName>;
+  const states: States<K> = input as States<K>;
   const graphMap: GraphMap<K> = new Map();
   const stateLabels = Object.keys(input) as K[];
   function convertSequence(inputSeq: TokenSequence<K>): Sequence<K> {

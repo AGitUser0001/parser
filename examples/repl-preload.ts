@@ -38,7 +38,7 @@ const arithmeticStates = {
   number: /[0-9]+/,
 } as const;
 
-export const g = graph.input_to_graph<keyof typeof arithmeticStates>(arithmeticStates);
+export const g = graph.input_to_graph(arithmeticStates);
 console.timeEnd('transform');
 console.time('gen');
 export const p = parser.build(g, true);

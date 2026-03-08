@@ -26,7 +26,7 @@ if (LOG_NUMBERS)
   console.log('Input: ', input.length);
 
 //#region define
-const jsonStates = {
+const jsonGraph = input_to_graph({
   Entry: [
     'Value'
   ],
@@ -59,8 +59,7 @@ const jsonStates = {
   Items: ['?', '@Value', [['*', '@Sep', '@Value']]],
 
   null: /null/
-} as const;
-const jsonGraph = input_to_graph<keyof typeof jsonStates>(jsonStates);
+});
 //#endregion
 
 if (LOG_GRAPH && util) {
