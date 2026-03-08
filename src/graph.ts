@@ -185,7 +185,7 @@ export class Graph<K extends StateName> extends MapView<StateKey<K>, Sequence<K>
   }
 };
 
-type StateKeys<T> = Extract<`${Exclude<keyof T, symbol>}`, StateName>;
+export type StateKeys<T extends States<StateName>> = Extract<`${Exclude<keyof T, symbol>}`, StateName>;
 export function typed_states<
   KInput extends StateName,
   T extends States<KInput> = States<KInput>
