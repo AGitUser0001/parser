@@ -95,7 +95,7 @@ export function emit<K extends StateName>(
       }
       if (!hasRef) continue;
       const text = ctx.vars.get(name)!;
-      const newText = transformCode(text, kmap, false);
+      const newText = transformCode(text, kmap, ctx.annotations);
       ctx.vars.set(name, newText);
       updateRefs(name, newText);
     }
@@ -198,7 +198,8 @@ export function emit<K extends StateName>(
   for (const fn of fns) {
     const refs = refsTo(fn.name);
     if (refs.length < 1) continue;
-    code += `${fn.toString()}\n`;
+    const fnText = transformCode(fn.toString(), new Map(), ctx.annotations);
+    code += `${fnText}\n`;
   }
   return code;
 }

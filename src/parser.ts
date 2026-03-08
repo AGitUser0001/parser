@@ -1,4 +1,7 @@
-import { Graph, isGeneric, type GraphToken, Choice, Sequence, type GraphCollection, type StandaloneOperator, type StateKey, type StateName, type IterationOperator, type Generic } from './graph.js';
+import { isGeneric, Choice, Sequence } from './graph.js';
+import type {
+  Graph, GraphToken, GraphCollection, StandaloneOperator, StateKey, StateName, IterationOperator, Generic
+} from './graph.js';
 import type { SccId } from './scc.js';
 import type { MapView } from './shared.js';
 import { logic, type Resources, type Fn } from './emit.js';
@@ -38,7 +41,7 @@ interface ParserCtx<K extends StateName> {
   readonly sccSolvers: Map<SccId, Fn<FnT<K, void>, FnT<K>>>;
 
   readonly lexicalStates: Set<StateKey<K>>;
-  bind(state: StateKey<K>, cb: (val: RV<K>) => void): void;
+  bind(state: StateKey<K>, cb: (val: StateRV<K>) => void): void;
   logic<T extends (...args: any[]) => any = FnT<K>>(closure: T, resources: Resources<FnT<K, unknown>>): Fn<T, FnT<K, unknown>>
 };
 
@@ -217,13 +220,13 @@ function buildTerm<K extends StateName>(
   } else if (term instanceof Choice) {
     return buildChoice(ctx, term, lexical);
   } else {
-    let x: RV<K> = noop;
+    let x: StateRV<K> = noop;
     ctx.bind(term, v => {
       x = v;
       if (f.resources) f.resources.x = x;
     });
 
-    let f: RV<K>;
+    let f: StateRV<K>;
     if (lexical)
       return f = ctx.logic((rc, pos) => x(rc, pos), { x });
     return f = ctx.logic((rc, pos) => {
@@ -235,9 +238,9 @@ function buildTerm<K extends StateName>(
     }, { x });
   }
 }
-const noop: RV<StateName> = logic<FnT<StateName>, never>((rc, pos) => {
+const noop = logic<FnT<StateName, never>, never>((rc, pos) => {
   throw new Error('Internal Error: noop reached.', { cause: { rc, pos } });
-}, { a: logic(() => { }, {}) });
+}, {});
 
 function buildSequence<K extends StateName>(
   ctx: ParserCtx<K>,
@@ -342,7 +345,7 @@ function buildRegex<K extends StateName>(ctx: ParserCtx<K>, re: RegExp): RV<K> {
   if (!re.sticky || re.global)
     throw new Error(`matchRegex: Expected sticky and non-global regex, got: ${re.flags}`, { cause: re });
 
-  return ctx.logic((rc, pos): Result => {
+  return ctx.logic((rc, pos) => {
     re.lastIndex = pos;
     const m = re.exec(rc.input);
 
@@ -627,7 +630,7 @@ export function build<K extends StateName>(
 ): ParserFn<K> | Parser<K> {
   const lexicalStates = new Set<StateKey<K>>();
   const allStates = new Set(graph.keys());
-  const toBind = new Map<StateKey<K>, ((val: RV<K>) => void)[]>();
+  const toBind = new Map<StateKey<K>, ((val: StateRV<K>) => void)[]>();
   for (const stateLabel of allStates) {
     if (LEXICAL_REGEX.test(stateLabel))
       lexicalStates.add(stateLabel);

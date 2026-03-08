@@ -17,6 +17,7 @@ const LOG_DATA = false;
 const RUN_EMIT = true;
 const WRITE_EMIT = true;
 const EMIT_PATH = './json_parser.js';
+const ANNOTATIONS = false;
 
 // const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
 const input = readFile ? await readFile('./json_sample1k.json', 'utf-8') : await (await fetch('./json_sample1k.json')).text();
@@ -149,7 +150,7 @@ if (WRITE_EMIT && writeFile) {
   const parser = build(jsonGraph, true);
   console.timeEnd('build');
   console.time('emit');
-  const emitted = emit(parser);
+  const emitted = emit(parser, ANNOTATIONS);
   console.timeEnd('emit');
   await writeFile(EMIT_PATH, emitted);
 }
