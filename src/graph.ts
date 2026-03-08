@@ -188,16 +188,18 @@ export class Graph<K extends StateName> extends MapView<StateKey<K>, Sequence<K>
 export function typed_states<
   KInput extends StateName,
   T extends Record<KInput, State<KInput>> = Record<KInput, State<KInput>>
->(input: T extends States<Extract<keyof T, StateName>> ? T : States<Extract<keyof T, StateName>>):
-  States<Extract<keyof T, StateName>> {
+>(input: T extends States<Extract<`${Extract<keyof T, string | number>}`, StateName>> ?
+  T : States<Extract<`${Extract<keyof T, string | number>}`, StateName>>):
+  States<Extract<`${Extract<keyof T, string | number>}`, StateName>> {
   return input;
 }
 
 export function input_to_graph<
   KInput extends StateName,
   T extends Record<KInput, State<KInput>> = Record<KInput, State<KInput>>
->(input: T extends States<Extract<keyof T, StateName>> ? T : States<Extract<keyof T, StateName>>) {
-  type K = Extract<keyof T, StateName>;
+>(input: T extends States<Extract<`${Extract<keyof T, string | number>}`, StateName>> ?
+  T : States<Extract<`${Extract<keyof T, string | number>}`, StateName>>) {
+  type K = Extract<`${Extract<keyof T, string | number>}`, StateName>;
   const states: States<K> = input as States<K>;
   const graphMap: GraphMap<K> = new Map();
   const stateLabels = Object.keys(input) as K[];
