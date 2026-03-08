@@ -19,21 +19,18 @@ export function logic<T extends Func, X extends Func>(closure: T, resources: Res
 interface EmitCtx<K extends StateName> {
   readonly vars: Map<string, string>;
   readonly memoMap: Map<O<FnT<K, unknown>>, string>;
-  readonly annotations: boolean;
   name(): string;
 };
 
 const INVALID_RE = /[^$_\p{ID_Start}\p{ID_Continue}\u200c\u200d]+/ug;
 const IS_VAR_RE = /^[$_\p{ID_Start}](?:[$_\u200C\u200D\p{ID_Continue}])*$/u;
 export function emit<K extends StateName>(
-  parser: Parser<K>,
-  annotations: boolean = false
+  parser: Parser<K>
 ) {
   let c = 0;
   const ctx: EmitCtx<K> = {
     vars: new Map,
     memoMap: new Map,
-    annotations,
     name() {
       const base36 = (c++).toString(36);
       return `$${base36}$`;
@@ -95,7 +92,7 @@ export function emit<K extends StateName>(
       }
       if (!hasRef) continue;
       const text = ctx.vars.get(name)!;
-      const newText = transformCode(text, kmap, ctx.annotations);
+      const newText = transformCode(text, kmap);
       ctx.vars.set(name, newText);
       updateRefs(name, newText);
     }
@@ -198,8 +195,7 @@ export function emit<K extends StateName>(
   for (const fn of fns) {
     const refs = refsTo(fn.name);
     if (refs.length < 1) continue;
-    const fnText = transformCode(fn.toString(), new Map(), ctx.annotations);
-    code += `${fnText}\n`;
+    code += `${fn.toString()}\n`;
   }
   return code;
 }
@@ -255,18 +251,13 @@ function emitFn<K extends StateName>(
     k.set(key, v);
   }
   let inputStr = arrowFunctionToBlock(value.toString());
-  return transformCode(inputStr, k, ctx.annotations);
+  return transformCode(inputStr, k);
 }
 
 import tokenize, { type Token } from "../node_modules/js-tokens/index.js";
-function transformCode(code: string, kmap: Map<string, string>, annotations: boolean): string {
+function transformCode(code: string, kmap: Map<string, string>): string {
   return mapCode(code, (tok) => {
     return kmap.get(tok.value);
-  }, (tok) => {
-    if (annotations && tok.type === "MultiLineComment" && tok.value
-      .slice(2).trimStart().startsWith(':')) {
-      return tok.value.slice(2, -2);
-    }
   });
 }
 
