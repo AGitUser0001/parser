@@ -1,4 +1,4 @@
-export { input_to_graph, graph_to_input, type Graph, type GraphStates } from './graph.js';
+export { input_to_graph, graph_to_input, typed_states, type Graph, type GraphStates } from './graph.js';
 export { build, type Result, type Parser, type ParserFn } from './parser.js';
 export { emit } from './emit.js';
 export { toParseTree, RootNode, StateNode, TerminalNode, IterationNode } from './nodes.js';

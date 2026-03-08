@@ -9,7 +9,7 @@ import * as emit from 'parser/emit';
 
 //#region tests
 console.time('transform');
-const arithmeticStates = {
+const arithmeticStates = graph.typed_states({
   Entry: [[['*', 'Expr', [/\s*,\s*/, ['@', '!Expr']]]], ['?', 'Expr']],
   Expr: ['Add'],
 
@@ -36,7 +36,7 @@ const arithmeticStates = {
   },
 
   number: /[0-9]+/,
-} as const;
+});
 
 export const g = graph.input_to_graph(arithmeticStates);
 console.timeEnd('transform');

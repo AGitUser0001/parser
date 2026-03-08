@@ -185,6 +185,14 @@ export class Graph<K extends StateName> extends MapView<StateKey<K>, Sequence<K>
   }
 };
 
+export function typed_states<
+  KInput extends StateName,
+  T extends Record<KInput, State<KInput>> = Record<KInput, State<KInput>>
+>(input: T extends States<Extract<keyof T, StateName>> ? T : States<Extract<keyof T, StateName>>):
+  States<Extract<keyof T, StateName>> {
+  return input;
+}
+
 export function input_to_graph<
   KInput extends StateName,
   T extends Record<KInput, State<KInput>> = Record<KInput, State<KInput>>

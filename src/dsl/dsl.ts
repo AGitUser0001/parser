@@ -1,7 +1,7 @@
 import type { CallToken, MutableArrayTokenExpr, MutableArrayTokenSequence, MutableStateObject, StandaloneOperator, StateName, Token, MutableState, MutableStates } from "../graph.js";
-import { input_to_graph, toParseTree, build, Semantics } from "../index.js";
+import { input_to_graph, typed_states, toParseTree, build, Semantics } from "../index.js";
 
-export const grammar = {
+export const grammar = typed_states({
   Grammar: ['*', 'State', ['?', /;/]],
 
   StateObject: ['prefixes', /\{/, [['*', 'State_reg', ['?', /;/]]], /\}/, '#postfixes'],
@@ -48,7 +48,7 @@ export const grammar = {
     single: [/'/, /[^']+/, /'/, /[a-z]*/],
     double: [/"/, /[^"]+/, /"/, /[a-z]*/]
   }
-} as const;
+});
 
 export const graph = input_to_graph(grammar);
 
