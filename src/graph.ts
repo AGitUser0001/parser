@@ -185,22 +185,19 @@ export class Graph<K extends StateName> extends MapView<StateKey<K>, Sequence<K>
   }
 };
 
+type StateKeys<T> = Extract<`${Extract<keyof T, string | number>}`, StateName>;
 export function typed_states<
   KInput extends StateName,
-  T extends Record<KInput, State<KInput>> = Record<KInput, State<KInput>>
->(input: T extends States<Extract<`${Extract<keyof T, string | number>}`, StateName>> ?
-  T : States<Extract<`${Extract<keyof T, string | number>}`, StateName>>):
-  States<Extract<`${Extract<keyof T, string | number>}`, StateName>> {
+  T extends States<KInput> = States<KInput>
+>(input: T extends States<StateKeys<T>> ? T : States<StateKeys<T>>): States<StateKeys<T>> {
   return input;
 }
-
 export function input_to_graph<
   KInput extends StateName,
-  T extends Record<KInput, State<KInput>> = Record<KInput, State<KInput>>
->(input: T extends States<Extract<`${Extract<keyof T, string | number>}`, StateName>> ?
-  T : States<Extract<`${Extract<keyof T, string | number>}`, StateName>>) {
-  type K = Extract<`${Extract<keyof T, string | number>}`, StateName>;
-  const states: States<K> = input as States<K>;
+  T extends States<KInput> = States<KInput>
+>(input: T extends States<StateKeys<T>> ? T : States<StateKeys<T>>): Graph<StateKeys<T>>  {
+  type K = StateKeys<T>;
+  const states: States<K> = input;
   const graphMap: GraphMap<K> = new Map();
   const stateLabels = Object.keys(input) as K[];
   function convertSequence(inputSeq: TokenSequence<K>): Sequence<K> {
