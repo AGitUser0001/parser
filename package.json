@@ -28,8 +28,9 @@
     }
   },
   "scripts": {
-    "build": "tsgo",
-    "repl": "tsx --import ./examples/repl-preload.js"
+    "build": "tsgo --build",
+    "repl": "tsx --import ./examples/repl-preload.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
@@ -47,5 +48,8 @@
   ],
   "dependencies": {
     "js-tokens": "^10.0.0"
-  }
+  },
+  "workspaces": [
+    "ui"
+  ]
 }

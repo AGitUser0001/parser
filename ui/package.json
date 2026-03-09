@@ -1,0 +1,14 @@
+{
+  "name": "parser-ui",
+  "version": "1.0.0",
+  "description": "Web UI for the parser library.",
+  "license": "BSD-3-Clause",
+  "author": "AGitUser0001",
+  "type": "module",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsgo --build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {}
+}
