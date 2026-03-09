@@ -164,8 +164,7 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
      * 
      * 1. Try exact match: 'Items@0'
      * 2. Strip suffix: 'Items' (For instantiated generics like 'Items@0', 'Items@1')
-     * 3. Fall back to attribute target if available
-     * 4. Fall through to single child if arity=1
+     * 3. Fall through to single child if arity=1
      */
 
     let stateLabel = node.state as StateKey<K>;
