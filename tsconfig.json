@@ -11,11 +11,15 @@
     "allowImportingTsExtensions": false,
     "strict": true,
     "outDir": "./dist/",
-    "rootDir": "./src/",
+    "rootDir": "./",
     "declaration": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "allowJs": true,
+    "checkJs": false
   },
   "include": [
-    "./src/**.ts"
+    "*.ts",
+    "dsl/*.ts",
+    "node_modules/js-tokens/index.js"
   ]
 }

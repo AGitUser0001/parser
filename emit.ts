@@ -254,7 +254,7 @@ function emitFn<K extends StateName>(
   return transformCode(inputStr, k);
 }
 
-import tokenize, { type Token } from "../node_modules/js-tokens/index.js";
+import tokenize, { type Token } from "./node_modules/js-tokens/index.js";
 function transformCode(code: string, kmap: Map<string, string>): string {
   return mapCode(code, (tok) => {
     return kmap.get(tok.value);
