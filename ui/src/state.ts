@@ -62,7 +62,8 @@ export class State {
   async compileSemantics(jsCode: string, enable_memoization: boolean = false): Promise<void> {
     if (this.graph == null)
       throw new Error('Failed compiling semantics: no graph.');
-    this.semantics = new Semantics(this.graph, eval(jsCode), enable_memoization);
+    const fn = new Function(`return (${jsCode})`);
+    this.semantics = new Semantics(this.graph, fn(), enable_memoization);
   }
 
   async runSemantics(jsCtx: string): Promise<void> {
@@ -70,7 +71,8 @@ export class State {
       throw new Error('Failed evaluating semantics: no semantics.');
     if (this.parseTree == null)
       throw new Error('Failed evaluating semantics: no parse tree.');
-    this.semanticsResult = this.semantics.evaluate(this.parseTree, eval(jsCtx));
+    const fn = new Function(`return (${jsCtx})`);
+    this.semanticsResult = this.semantics.evaluate(this.parseTree, fn());
   }
 
   async emit(): Promise<string> {
