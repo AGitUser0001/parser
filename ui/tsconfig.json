@@ -1,25 +1,24 @@
 {
   "compilerOptions": {
-    "target": "esnext",
-    "module": "nodenext",
+    "target": "es2022",
+    "module": "es2022",
+    "types": [],
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": false,
     "strict": true,
-    "outDir": "./",
+    "outDir": "./dist/",
+    "rootDir": "./src/",
     "declaration": true,
     "sourceMap": true,
     "composite": true
   },
   "include": [
-    "./**/*.ts"
-  ],
-  "exclude": [
-    "./**/*.js",
-    "./**/*.d.ts"
+    "./src/**/*.ts"
   ],
   "references": [
     {
-      "path": "../../"
+      "path": "../"
     }
   ]
 }
