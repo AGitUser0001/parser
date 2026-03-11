@@ -78,7 +78,7 @@ export class Panel {
       el.ariaSelected = el === tab ? 'true' : 'false';
     }
 
-    const model = this.models.get(name)!;
+    const model = this.models.get(name) ?? null;
     this.meditor.setModel(model);
     this.current_model = model;
     tab.classList.toggle('hide-editor', model == null);
