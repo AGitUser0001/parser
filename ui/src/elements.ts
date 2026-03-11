@@ -55,9 +55,11 @@ export class Panel {
     if (!tab)
       throw new Error(`Unknown tab: ${name}`);
 
+    if (this.current_tab === name)
+      return;
     this.current_tab = name;
 
-    for (const [tabName, el] of this.tabs) {
+    for (const el of this.tabs.values()) {
       el.classList.remove("active");
     }
     tab.classList.add('active');
@@ -65,7 +67,7 @@ export class Panel {
     const model = this.models.get(name)!;
     this.meditor.setModel(model);
     this.current_model = model;
-    // tab.classList.toggle('hide-editor', model == null);
+    tab.classList.toggle('hide-editor', model == null);
     this.content.textContent = '';
 
     const onTabChange = this.onTabChange.get(name);
