@@ -19,14 +19,20 @@ const parserPanel = new Panel(
   document.getElementById("parser-panel")!
 );
 
-const grammarModel = monaco.editor.createModel('', 'javascript');
+const grammarModel = monaco.editor.createModel('', 'plaintext');
 grammarPanel.addTab("Grammar", grammarModel);
 grammarPanel.addTab("Graph");
-const semanticsModel = monaco.editor.createModel('', 'javascript');
+
+const semanticsModel = monaco.editor.createModel(`{
+  State(child1, child2, child3) {
+    return this(child1) + this(child3);
+  }
+}`, 'javascript');
 grammarPanel.addTab("Semantics", semanticsModel);
 grammarPanel.addTab("Emit");
 
-parserPanel.addTab("Input");
+const inputModel = monaco.editor.createModel('', 'plaintext');
+parserPanel.addTab("Input", inputModel);
 parserPanel.addTab("CST");
 parserPanel.addTab("Parse Tree");
 parserPanel.addTab("Tokens");
