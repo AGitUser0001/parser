@@ -26,6 +26,9 @@ html, body {
 }
 
 .tab {
+  background: none;
+  font: inherit;
+  border: unset;
   flex-grow: 1;
   display: grid;
   align-content: center;
@@ -40,21 +43,23 @@ html, body {
   color: #777;
 }
 
-.panel:focus-within .tab, .tab:hover {
+.panel:focus-within .tab, .tab:hover, .tab:focus-visible {
   color: #555;
 }
 
 .tabbar:has(.tab.hide-content.active)~.content {
   display: none;
 }
+
 .tabbar:has(.tab.hide-editor.active)~.editor {
   display: none;
 }
+
 .tabbar:has(.tab.hide-editor.active)~.content {
   flex-grow: 1;
 }
 
-.panel:focus-within .tab:hover {
+.panel:focus-within .tab:hover, .tab:focus-visible {
   background: #fff;
 }
 

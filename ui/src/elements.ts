@@ -7,16 +7,18 @@ export class Panel {
 
   tabs = new Map<string, HTMLElement>();
   models = new Map<string, monaco.editor.ITextModel | null>();
-  onTabChange = new Map<string, () => boolean | void>();
+  onTabChange = new Map<string, () => boolean | void | Promise<boolean | void>>();
 
   current_tab: string | null = null;
   current_model: monaco.editor.ITextModel | null = null;
 
   constructor(root: HTMLElement) {
     this.root = root;
+    this.root.role = "tabpanel";
 
     this.tabbar = document.createElement("div");
     this.tabbar.className = "tabbar";
+    this.tabbar.role = "tablist";
 
     this.editor = document.createElement("div")
     this.editor.className = "editor";
@@ -24,9 +26,17 @@ export class Panel {
     this.meditor = monaco.editor.create(this.editor, {
       automaticLayout: true
     });
+    this.meditor.addAction({
+      id: 'TOGGLE_TAB_FOCUS_MODE',
+      label: 'Toggle Tab Key Moves Focus',
+      run: (ed) => {
+        ed.trigger('shortcut', 'editor.action.toggleTabFocusMode', '');
+      }
+    });
 
     this.content = document.createElement("div")
     this.content.className = "content";
+    this.content.tabIndex = 0;
 
     root.appendChild(this.tabbar);
     root.appendChild(this.editor);
@@ -34,8 +44,9 @@ export class Panel {
   }
 
   addTab(name: string, model: monaco.editor.ITextModel | null = null, onTabChange?: () => boolean | void) {
-    const tab = document.createElement("div");
+    const tab = document.createElement("button");
     tab.className = "tab";
+    tab.role = "tab";
     tab.textContent = name;
 
     tab.onclick = () => this.setTab(name);
@@ -50,20 +61,23 @@ export class Panel {
       this.setTab(name);
   }
 
+  #id = 0;
   setTab(name: string) {
     const tab = this.tabs.get(name);
     if (!tab)
       throw new Error(`Unknown tab: ${name}`);
 
-    this.meditor.focus();
-    if (this.current_tab === name)
+    if (this.current_tab === name) {
+      this.meditor.layout();
+      this.meditor.focus();
       return;
+    }
     this.current_tab = name;
 
     for (const el of this.tabs.values()) {
-      el.classList.remove("active");
+      el.classList.toggle("active", el === tab);
+      el.ariaSelected = el === tab ? 'true' : 'false';
     }
-    tab.classList.add('active');
 
     const model = this.models.get(name)!;
     this.meditor.setModel(model);
@@ -71,10 +85,25 @@ export class Panel {
     tab.classList.toggle('hide-editor', model == null);
     this.content.textContent = '';
 
+    if (model != null) {
+      this.meditor.layout();
+      this.meditor.focus();
+    } else {
+      this.content.focus();
+    }
+
     const onTabChange = this.onTabChange.get(name);
     if (onTabChange) {
       const showContent = onTabChange();
-      tab.classList.toggle('hide-content', showContent === false);
+      if (showContent instanceof Promise) {
+        const i = ++this.#id;
+        showContent.then(v => {
+          if (this.#id === i)
+            tab.classList.toggle('hide-content', v === false);
+        });
+      } else {
+        tab.classList.toggle('hide-content', showContent === false);
+      }
     } else {
       tab.classList.add('hide-content');
     }
