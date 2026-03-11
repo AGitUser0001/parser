@@ -43,6 +43,8 @@ export class Panel {
     this.tabs.set(name, tab);
     this.models.set(name, model);
     this.tabbar.appendChild(tab);
+    if (onTabChange)
+      this.onTabChange.set(name, onTabChange);
 
     if (this.current_tab === null)
       this.setTab(name);
