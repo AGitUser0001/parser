@@ -7,7 +7,7 @@ export class Panel {
 
   tabs = new Map<string, HTMLElement>();
   models = new Map<string, monaco.editor.ITextModel | null>();
-  onTabChange = new Map<string, () => boolean | void | Promise<boolean | void>>();
+  onTabChange = new Map<string, () => boolean | void>();
 
   current_tab: string | null = null;
   current_model: monaco.editor.ITextModel | null = null;
@@ -61,7 +61,6 @@ export class Panel {
       this.setTab(name);
   }
 
-  #id = 0;
   setTab(name: string) {
     const tab = this.tabs.get(name);
     if (!tab)
@@ -95,15 +94,7 @@ export class Panel {
     const onTabChange = this.onTabChange.get(name);
     if (onTabChange) {
       const showContent = onTabChange();
-      if (showContent instanceof Promise) {
-        const i = ++this.#id;
-        showContent.then(v => {
-          if (this.#id === i)
-            tab.classList.toggle('hide-content', v === false);
-        });
-      } else {
-        tab.classList.toggle('hide-content', showContent === false);
-      }
+      tab.classList.toggle('hide-content', showContent === false);
     } else {
       tab.classList.add('hide-content');
     }
