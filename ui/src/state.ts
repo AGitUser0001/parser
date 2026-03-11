@@ -1,5 +1,5 @@
-import { emit, Graph, Semantics, toParseTree, dsl, build, input_to_graph, tokenize } from '../../src/index.js';
-import type { Parser, Result, TokenizerToken, RootNode, StateName, States } from '../../src/index.js';
+import { emit, Graph, Semantics, toParseTree, dsl, build, input_to_graph, tokenize } from '../parser_dist/index.js';
+import type { Parser, Result, TokenizerToken, RootNode, StateName, States } from '../parser_dist/index.js';
 export class State {
   input: string = "";
   states: States<StateName> | null = null;

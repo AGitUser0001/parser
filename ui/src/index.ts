@@ -10,6 +10,9 @@ await new Promise<void>(r => {
 });
 //#endregion
 import { Panel } from './elements.js';
+import { State } from './state.js';
+
+const state = new State();
 
 const grammarPanel = new Panel(
   document.getElementById("grammar-panel")!
@@ -20,6 +23,15 @@ const parserPanel = new Panel(
 );
 
 const grammarModel = monaco.editor.createModel('', 'plaintext');
+grammarModel.onDidChangeContent(() => {
+  state.input = grammarModel.getValue();
+
+  state.compile().then(() => {
+    if (grammarPanel.current_tab === "Graph") {
+      // renderGraph();
+    }
+  });
+});
 grammarPanel.addTab('grammar', "Grammar", grammarModel);
 grammarPanel.addTab('graph', "Graph");
 
