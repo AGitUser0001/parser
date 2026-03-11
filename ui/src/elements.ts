@@ -43,11 +43,11 @@ export class Panel {
     root.appendChild(this.content);
   }
 
-  addTab(name: string, model: monaco.editor.ITextModel | null = null, onTabChange?: () => boolean | void) {
+  addTab(name: string, label: string, model: monaco.editor.ITextModel | null = null, onTabChange?: () => boolean | void) {
     const tab = document.createElement("button");
     tab.className = "tab";
     tab.role = "tab";
-    tab.textContent = name;
+    tab.textContent = label;
 
     tab.onclick = () => this.setTab(name);
 
