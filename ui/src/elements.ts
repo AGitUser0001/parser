@@ -66,6 +66,7 @@ export class Panel {
 
     const model = this.models.get(name)!;
     this.meditor.setModel(model);
+    this.meditor.focus();
     this.current_model = model;
     tab.classList.toggle('hide-editor', model == null);
     this.content.textContent = '';
