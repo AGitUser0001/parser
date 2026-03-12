@@ -9,7 +9,8 @@ await new Promise<void>(r => {
   require(["vs/editor/editor.main"], r);
 });
 //#endregion
-import { Panel } from './elements.js';
+import { emit } from '../parser_dist/emit.js'; import { ButtonOverlay, Panel } from './elements.js';
+import { renderGraph } from './render.js'
 import { State } from './state.js';
 
 const state = new State();
@@ -28,12 +29,14 @@ grammarModel.onDidChangeContent(() => {
 
   state.compile().then(() => {
     if (grammarPanel.current_tab === "Graph") {
-      // renderGraph();
+      renderGraph(grammarPanel, state.graph!);
     }
   });
 });
 grammarPanel.addTab('grammar', "Grammar", grammarModel);
-grammarPanel.addTab('graph', "Graph");
+grammarPanel.addTab('graph', "Graph", null, () => {
+  renderGraph(grammarPanel, state.graph!);
+});
 
 const semanticsModel = monaco.editor.createModel(`{
   State(child1, child2, child3) {
@@ -48,4 +51,24 @@ parserPanel.addTab('input', "Input", inputModel);
 parserPanel.addTab('cst', "CST");
 parserPanel.addTab('parseTree', "Parse Tree");
 parserPanel.addTab('tokens', "Tokens");
-parserPanel.addTab('semanticsResult', "Semantics Result");
+
+const semanticsCtxModel = monaco.editor.createModel(`undefined`, 'javascript');
+
+const semanticsRunOverlay = new ButtonOverlay('<span class="codicon codicon-play"></span> Run',
+  () => {
+    console.log('test');
+  });
+
+parserPanel.meditor.onDidChangeModel(e => {
+  if (e.newModelUrl === semanticsCtxModel.uri)
+    parserPanel.meditor.addOverlayWidget(semanticsRunOverlay);
+  else
+    parserPanel.meditor.removeOverlayWidget(semanticsRunOverlay);
+})
+
+parserPanel.addTab('semanticsResult', "Semantics Result", semanticsCtxModel, () => {
+  parserPanel.content.appendChild(
+    document.createElement('pre')
+  );
+  return true;
+});

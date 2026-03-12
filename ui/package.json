@@ -29,6 +29,7 @@
     "dist",
     "globals.d.ts",
     "index.html",
-    "style.css"
+    "style.css",
+    "parser_dist"
   ]
 }

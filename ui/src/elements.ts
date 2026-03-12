@@ -82,7 +82,7 @@ export class Panel {
     this.meditor.setModel(model);
     this.current_model = model;
     tab.classList.toggle('hide-editor', model == null);
-    this.content.textContent = '';
+    this.content.replaceChildren();
 
     if (model != null) {
       this.meditor.layout();
@@ -100,3 +100,25 @@ export class Panel {
     }
   }
 }
+
+export class ButtonOverlay implements monaco.editor.IOverlayWidget {
+  node;
+  constructor(innerHTML: string, onclick: () => void) {
+    this.node = document.createElement('button');
+    this.node.innerHTML = innerHTML;
+    this.node.classList.add('button-overlay');
+    this.node.onclick = () => void onclick();
+  }
+  getDomNode() {
+    return this.node;
+  }
+  getId() {
+    return 'button_overlay';
+  }
+  getPosition(): monaco.editor.IOverlayWidgetPosition {
+    return {
+      preference: monaco.editor.OverlayWidgetPositionPreference.TOP_RIGHT_CORNER
+    };
+  }
+}
+

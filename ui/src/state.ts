@@ -44,6 +44,9 @@ export class State {
     this.parseTree = null;
     this.tokens = null;
     this.semanticsResult = undefined;
+
+    this.parseTree = toParseTree(this.result!);
+    this.tokens = tokenize(this.result!);
   }
 
   async tokenize(): Promise<void> {
