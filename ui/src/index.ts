@@ -12,10 +12,10 @@ await new Promise<void>(r => {
 import type { Graph, RootNode, StateName } from '../parser_dist/index.js';
 import { ButtonOverlay, Panel } from './elements.js';
 import { renderGraph, renderInspector, renderInspector2 } from './render.js';
-import { MergeStream, State, Stream, type Handle } from './state.js';
+import { MergeStream, ProxyState, State, Stream, type Handle } from './state.js';
 import { getMarkers } from './utils.js';
 
-const state = new State();
+const state = new ProxyState();
 
 const grammarPanel = new Panel(
   document.getElementById("grammar-panel")!
@@ -67,12 +67,14 @@ let compiled: CompiledType | null = null;
 let emitted: string = '';
 streams.compiled.subscribe(({ data, err }, token) => {
   if (!data) {
-    compiled?.parser.dispose();
+    if (compiled?.parser)
+      state.dispose(compiled?.parser);
     compiled = null;
     monaco.editor.setModelMarkers(grammarModel, 'compile', getMarkers(grammarModel, err));
     return;
   }
-  compiled?.parser.dispose();
+  if (compiled?.parser)
+    state.dispose(compiled?.parser);
   compiled = data;
 }, (_, token) => {
   grammarPanel.refresh('graph');
@@ -274,7 +276,9 @@ const semanticsRunOverlay = new ButtonOverlay('<span class="codicon codicon-play
 let semanticsRunData: Partial<SemanticsRunData> = {};
 streams.semanticsRunData.subscribe(data => {
   if (semanticsRunData.semantics !== data.semantics)
-    semanticsRunData.semantics?.dispose();
+    if (semanticsRunData.semantics)
+      state.dispose(semanticsRunData.semantics);
+
   semanticsRunData = data;
 });
 

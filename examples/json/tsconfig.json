@@ -3,6 +3,7 @@
     "target": "esnext",
     "module": "nodenext",
     "skipLibCheck": true,
+    "types": ["node"],
     "verbatimModuleSyntax": true,
     "strict": true,
     "outDir": "./",

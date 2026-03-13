@@ -129,3 +129,7 @@ declare global {
   }
   function structuredClone<T = any>(value: T, options?: StructuredSerializeOptions): T;
 }
+
+export type FindKeyByValue<M, V> = {
+  [K in keyof M]: M[K] extends V ? K : never;
+}[keyof M];

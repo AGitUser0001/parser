@@ -1,6 +1,6 @@
 import type { StateName, IterationOperator } from './graph.js';
 import type { Result, MatcherValue } from './parser.js';
-import type { DeepReplace, Display } from './shared.js';
+import type { DeepReplace, Display, FindKeyByValue } from './shared.js';
 
 export class ParseFailedError extends Error {
   name = 'ParseFailedError';
@@ -244,6 +244,15 @@ export type IncompleteRepresentation = Display<
   DeepReplace<Representation, [Representation[], ParseTreeNode[]] | [Representation[][], ParseTreeNode[][]]>
 >;
 
+type NodeTypeMap = {
+  'root': RootNode;
+  'state': StateNode;
+  'terminal': TerminalNode;
+  'iteration': IterationNode;
+}
+
+export function toJSON<T extends ParseTreeNode>(value: T): Extract<Representation, { type: FindKeyByValue<NodeTypeMap, T> }>;
+export function toJSON(value: ParseTreeNode): Representation;
 export function toJSON(value: ParseTreeNode): Representation {
   const v = value.toJSON();
   switch (v.type) {
@@ -270,6 +279,8 @@ export function toJSON(value: ParseTreeNode): Representation {
   }
 }
 
+export function fromJSON<T extends Representation>(value: T): NodeTypeMap[T['type']];
+export function fromJSON(value: Representation): ParseTreeNode;
 export function fromJSON(value: Representation): ParseTreeNode {
   const v = value;
   switch (v.type) {
