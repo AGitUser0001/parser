@@ -1,15 +1,13 @@
 import { Sequence, Choice, type GraphToken } from "../parser_dist/graph.js";
 import { Graph } from "../parser_dist/index.js";
 import type { StateName } from "../parser_dist/index.js";
-import { Panel } from "./elements.js";
 
-export function renderGraph(panel: Panel, graph: Graph<StateName> | null | undefined) {
-  panel.content.replaceChildren();
+export function renderGraph(c: HTMLElement, graph: Graph<StateName> | null | undefined) {
   if (graph == null) {
     const el = document.createElement("div");
     el.textContent = "No graph available.";
 
-    panel.content.appendChild(el);
+    c.appendChild(el);
     return;
   }
 
@@ -32,7 +30,7 @@ export function renderGraph(panel: Panel, graph: Graph<StateName> | null | undef
       children.classList.toggle("collapsed");
     }
 
-    panel.content.appendChild(el);
+    c.appendChild(el);
   }
 }
 
@@ -82,15 +80,31 @@ function renderNode(node: GraphToken<StateName>): HTMLElement {
   return el;
 }
 
-export function renderInspector(panel: Panel, data: unknown, name?: string, fallback: string = 'No data available.') { 
+import { Inspector } from "@observablehq/inspector";
+const inspectors = new WeakMap<HTMLElement, Inspector>();
+export function renderInspector(c: HTMLElement, data: unknown, name: string, fallback: string = 'No data available.') { 
+  if (!inspectors.has(c))
+    inspectors.set(c, new Inspector(c));
+    
+  const inspector = inspectors.get(c)!;
   if (data == undefined) {
-    const el = document.createElement('div');
-    el.textContent = fallback;
-    panel.content.appendChild(el);
-    return;
+    inspector.rejected(fallback);
+  } else {
+    inspector.fulfilled(data, name);
   }
-  const inspector = document.createElement('ix-object-inspector');
-  inspector.name = name;
-  inspector.data = data;
-  panel.content.appendChild(inspector);
+}
+
+export function renderInspector2(c: HTMLElement, isError: boolean, data: unknown, name: string) { 
+  if (!inspectors.has(c))
+    inspectors.set(c, new Inspector(c));
+    
+  const inspector = inspectors.get(c)!;
+  if (isError) {
+    if (data instanceof Error)
+      try { if (data.stack) data = data.stack }
+      catch { }
+    inspector.rejected(String(data));
+  } else {
+    inspector.fulfilled(data, name);
+  }
 }

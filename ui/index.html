@@ -5,18 +5,13 @@
     <meta charset='UTF-8' />
     <meta name='viewport' content='width=device-width, initial-scale=1.0' />
     <link rel='stylesheet' href='style.css' />
+    <link rel='stylesheet' href='../node_modules/@observablehq/inspector/dist/inspector.css' />
     <script src='../node_modules/monaco-editor/min/vs/loader.js'></script>
     <script type="importmap">
     {
       "imports": {
-        "inspector-elements": "../node_modules/inspector-elements/index.js",
-        "lit": "../node_modules/lit/index.js",
-        "lit/": "../node_modules/lit/",
-        "@lit/reactive-element": "../node_modules/@lit/reactive-element/reactive-element.js",
-        "@lit/reactive-element/": "../node_modules/@lit/reactive-element/",
-        "lit-html": "../node_modules/lit-html/lit-html.js",
-        "lit-html/": "../node_modules/lit-html/",
-        "lit-element/": "../node_modules/lit-element/"
+        "@observablehq/inspector": "../node_modules/@observablehq/inspector/src/index.js",
+        "isoformat": "../node_modules/isoformat/src/index.js"
       }
     }
     </script>

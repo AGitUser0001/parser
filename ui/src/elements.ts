@@ -1,3 +1,4 @@
+type ContentUpdater = (container: HTMLElement) => boolean | void;
 export class Panel {
   root: HTMLElement;
   tabbar: HTMLElement;
@@ -7,7 +8,8 @@ export class Panel {
 
   tabs = new Map<string, HTMLElement>();
   models = new Map<string, monaco.editor.ITextModel | null>();
-  onTabChange = new Map<string, () => boolean | void>();
+  contentContainers = new Map<string, HTMLElement>();
+  contentUpdaters = new Map<string, ContentUpdater>();
 
   current_tab: string | null = null;
   current_model: monaco.editor.ITextModel | null = null;
@@ -43,7 +45,7 @@ export class Panel {
     root.appendChild(this.content);
   }
 
-  addTab(name: string, label: string, model: monaco.editor.ITextModel | null = null, onTabChange?: () => boolean | void) {
+  addTab(name: string, label: string, model: monaco.editor.ITextModel | null = null, update?: ContentUpdater) {
     const tab = document.createElement("button");
     tab.className = "tab";
     tab.role = "tab";
@@ -54,9 +56,11 @@ export class Panel {
     this.tabs.set(name, tab);
     this.models.set(name, model);
     this.tabbar.appendChild(tab);
-    if (onTabChange)
-      this.onTabChange.set(name, onTabChange);
+    if (update)
+      this.contentUpdaters.set(name, update);
+    this.contentContainers.set(name, document.createElement('div'));
 
+    this.refresh(name);
     if (this.current_tab === null)
       this.setTab(name);
   }
@@ -82,7 +86,7 @@ export class Panel {
     this.meditor.setModel(model);
     this.current_model = model;
     tab.classList.toggle('hide-editor', model == null);
-    this.content.replaceChildren();
+    this.content.replaceChildren(this.contentContainers.get(name)!);
 
     if (model != null) {
       this.meditor.layout();
@@ -90,28 +94,19 @@ export class Panel {
     } else {
       this.content.focus();
     }
-
-    const onTabChange = this.onTabChange.get(name);
-    if (onTabChange) {
-      const showContent = onTabChange();
-      tab.classList.toggle('hide-content', showContent === false);
-    } else {
-      tab.classList.add('hide-content');
-    }
   }
 
-  refresh() {
-    const name = this.current_tab;
-    if (name == null) return;
-
+  refresh(name: string) {
     const tab = this.tabs.get(name);
-    if (!tab) return;
+    if (!tab)
+      throw new Error(`Unknown tab: ${name}`);
 
-    this.content.replaceChildren();
+    const container = this.contentContainers.get(name)!;
+    container.replaceChildren();
 
-    const onTabChange = this.onTabChange.get(name);
-    if (onTabChange) {
-      const showContent = onTabChange();
+    const updateContent = this.contentUpdaters.get(name);
+    if (updateContent) {
+      const showContent = updateContent(container);
       tab.classList.toggle('hide-content', showContent === false);
     } else {
       tab.classList.add('hide-content');

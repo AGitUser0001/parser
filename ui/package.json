@@ -15,8 +15,8 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@observablehq/inspector": "^5.0.1",
     "finalhandler": "^2.1.1",
-    "inspector-elements": "^0.1.0",
     "monaco-editor": "^0.55.1",
     "serve-static": "^2.2.1"
   },

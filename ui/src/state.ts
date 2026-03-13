@@ -52,7 +52,7 @@ export class State {
   }
 
   async compileSemantics(graph: Graph<StateName>, jsCode: string, enable_memoization: boolean = false) {
-    const fn = new Function(`return (${jsCode})`);
+    const fn = new Function(jsCode);
     const semantics = new Semantics(graph, fn(), enable_memoization);
     const semanticsHandle = this.#mapHandle(this.#semantics, 'semantics', semantics);
     return semanticsHandle;
@@ -60,7 +60,7 @@ export class State {
 
   async runSemantics(semantics: Handle<'semantics'>, parseTree: RootNode, jsCtx: string): Promise<unknown> {
     const semanticsO = this.#readHandle(this.#semantics, semantics);
-    const fn = new Function(`return (${jsCtx})`);
+    const fn = new Function(jsCtx);
     return semanticsO.evaluate(parseTree, fn());
   }
 
@@ -90,6 +90,33 @@ export class Stream<T> {
 
     for (const cb of this.#subs)
       cb(value, token);
+
+    return true;
+  }
+}
+
+export class MergeStream<O extends Record<string, unknown>> {
+  #subs: ((value: Partial<O>, token: bigint) => void)[] = [];
+  #values: Partial<O> = Object.create(null);
+  #tokens: Partial<Record<keyof O, bigint>> = Object.create(null);
+
+  subscribe(...cbs: ((value: Partial<O>, token: bigint) => void)[]) {
+    this.#subs.push(...cbs);
+  }
+
+  update<K extends keyof O>(label: K, value: O[K] | undefined, token: bigint | null) {
+    if (token === null) {
+      token = globalToken++;
+    } else {
+      if (token <= (this.#tokens[label] ?? -1n))
+        return false;
+    }
+    this.#tokens[label] = token;
+    this.#values[label] = value;
+  
+    const data = { ...this.#values };
+    for (const cb of this.#subs)
+      cb(data, token);
 
     return true;
   }

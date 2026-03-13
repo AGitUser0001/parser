@@ -130,3 +130,7 @@ html, body {
 .button-overlay:hover {
   color: var(--vscode-editorLink-activeForeground);
 }
+
+.observablehq--inspect {
+  white-space: pre-wrap !important;
+}

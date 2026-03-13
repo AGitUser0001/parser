@@ -1,5 +1,4 @@
 /// <reference path="../globals.d.ts" preserve="true" />
-/// <reference path="../../node_modules/inspector-elements/lib/object-inspector/object-inspector.d.ts" preserve="true" />
 //#region Loading monaco-editor
 await new Promise<void>(r => {
   require.config({
@@ -10,11 +9,11 @@ await new Promise<void>(r => {
   require(["vs/editor/editor.main"], r);
 });
 //#endregion
+import type { Graph, RootNode, StateName } from '../parser_dist/index.js';
 import { ButtonOverlay, Panel } from './elements.js';
-import { renderGraph,renderInspector } from './render.js';
-import { State, Stream, type Handle } from './state.js';
+import { renderGraph, renderInspector, renderInspector2 } from './render.js';
+import { MergeStream, State, Stream, type Handle } from './state.js';
 import { getMarkers } from './utils.js';
-import 'inspector-elements';
 
 const state = new State();
 
@@ -28,11 +27,19 @@ const parserPanel = new Panel(
 
 type CompiledType = Awaited<ReturnType<State['compile']>>;
 type ParsedType = Awaited<ReturnType<State['parse']>>;
+type SemanticsType = Awaited<ReturnType<State['compileSemantics']>>;
+type SemanticsRunData = { semantics: Handle<'semantics'>, parseTree: RootNode, jsCtx: string };
 const streams = {
   grammar: new Stream<string>(),
   compiled: new Stream<{ data?: CompiledType, err?: unknown }>(),
-  input: new Stream<{ input: string, parser?: Handle<'parser'> }>(),
+  emitted: new Stream<string>(),
+  input: new MergeStream<{ input: string, parser: Handle<'parser'>, start: string, ws?: RegExp }>(),
   parsed: new Stream<{ data?: ParsedType, err?: unknown }>(),
+  semanticsCode: new MergeStream<{ input: string, graph: Graph<StateName> }>(),
+  compiledSemantics: new Stream<{ data?: SemanticsType, err?: unknown }>(),
+  semanticsRunData: new MergeStream<SemanticsRunData>(),
+  triggerSemanticsRun: new Stream<Partial<SemanticsRunData>>(),
+  semanticsRunResult: new Stream<{ ok: boolean, data: unknown }>()
 };
 
 const grammarModel = monaco.editor.createModel('', 'plaintext');
@@ -47,8 +54,9 @@ streams.grammar.subscribe((dslCode, token) => {
     data => streams.compiled.update({ data }, token),
     err => streams.compiled.update({ err }, token)
   );
-})
+});
 let compiled: CompiledType | null = null;
+let emitted: string = '';
 streams.compiled.subscribe(({ data, err }, token) => {
   if (!data) {
     compiled?.parser.dispose();
@@ -59,47 +67,92 @@ streams.compiled.subscribe(({ data, err }, token) => {
   compiled?.parser.dispose();
   compiled = data;
 }, (_, token) => {
-  if (grammarPanel.current_tab === 'graph') {
-    grammarPanel.refresh();
+  grammarPanel.refresh('graph');
+  streams.input.update('parser', compiled?.parser, token);
+  streams.semanticsCode.update('graph', compiled?.graph, token);
+}, (_, token) => {
+  if (!compiled) {
+    streams.emitted.update('', token);
+    return;
   }
-  const input = inputModel.getValue();
-  streams.input.update({ input, parser: compiled?.parser }, token);
+  state.emit(compiled.parser).then(
+    str => streams.emitted.update(str, token)
+  );
 });
 
-grammarPanel.addTab('graph', "Graph", null, () => {
-  renderGraph(grammarPanel, compiled?.graph);
+streams.emitted.subscribe(code => {
+  emitted = code;
+  grammarPanel.refresh('emit');
 });
 
-const semanticsModel = monaco.editor.createModel(`{
+grammarPanel.addTab('graph', "Graph", null, (c) => {
+  renderGraph(c, compiled?.graph);
+});
+
+const semanticsModel = monaco.editor.createModel(`return {
   State(child1, child2, child3) {
     return this(child1) + this(child3);
   }
 }`, 'javascript');
 grammarPanel.addTab('semanticsCode', "Semantics", semanticsModel);
-grammarPanel.addTab('emit', "Emit");
+
+semanticsModel.onDidChangeContent(() => {
+  const jsCode = semanticsModel.getValue();
+  streams.semanticsCode.update('input', jsCode, null);
+});
+streams.semanticsCode.subscribe(({ graph, input: jsCode }, token) => {
+  monaco.editor.setModelMarkers(semanticsModel, 'compileSemantics', []);
+  if (graph == null || jsCode == null) {
+    streams.compiledSemantics.update({}, token);
+    return;
+  }
+  state.compileSemantics(graph, jsCode).then(
+    data => streams.compiledSemantics.update({ data }, token),
+    err => streams.compiledSemantics.update({ err }, token)
+  );
+});
+
+streams.compiledSemantics.subscribe((value, token) => {
+  const { data, err } = value;
+  streams.semanticsRunData.update('semantics', data, token);
+  if (!data) {
+    if ('err' in value)
+      monaco.editor.setModelMarkers(semanticsModel, 'compileSemantics', getMarkers(semanticsModel, err));
+    return;
+  }
+});
+
+const emitModel = monaco.editor.createModel('', 'javascript');
+
+grammarPanel.meditor.onDidChangeModel(e => {
+  if (e.newModelUrl === emitModel.uri)
+    grammarPanel.meditor.updateOptions({ readOnly: true });
+  else
+    grammarPanel.meditor.updateOptions({ readOnly: false });
+})
+
+grammarPanel.addTab('emit', "Emit", emitModel, () => {
+  emitModel.setValue(emitted);
+  return false;
+});
 
 const inputModel = monaco.editor.createModel('', 'plaintext');
 parserPanel.addTab('input', "Input", inputModel);
 inputModel.onDidChangeContent(() => {
   const input = inputModel.getValue();
-  streams.input.update({ input, parser: compiled?.parser }, null);
+  streams.input.update('input', input, null);
 });
 
-let start = 'Entry', ws = '';
-streams.input.subscribe(({ input, parser }, token) => {
+streams.input.subscribe(({ input, parser, start, ws }, token) => {
   monaco.editor.setModelMarkers(inputModel, 'parse', []);
-  if (!parser) {
+  if (parser == null || input == null || start == null) {
     streams.parsed.update({}, token);
     return;
   }
-  try {
-    state.parse(parser, input, start, eval(ws)).then(
-      data => streams.parsed.update({ data }, token),
-      err => streams.parsed.update({ err }, token)
-    );
-  } catch (err) {
-    streams.parsed.update({ err }, token);
-  }
+  state.parse(parser, input, start, ws).then(
+    data => streams.parsed.update({ data }, token),
+    err => streams.parsed.update({ err }, token)
+  );
 });
 let parsed: ParsedType | null = null;
 streams.parsed.subscribe((value, token) => {
@@ -111,30 +164,60 @@ streams.parsed.subscribe((value, token) => {
     return;
   }
   parsed = data;
-}, () => {
-  if (parserPanel.current_tab != null && [
-    'parse', 'parseTree', 'tokens'
-  ].includes(parserPanel.current_tab)) {
-    parserPanel.refresh();
+}, (_, token) => {
+  parserPanel.refresh('parse');
+  parserPanel.refresh('parseTree');
+  parserPanel.refresh('tokens');
+  streams.semanticsRunData.update('parseTree', parsed?.parseTree, token);
+});
+
+parserPanel.addTab('parse', "Parse", null, (c) => {
+  renderInspector(c, parsed?.result, 'Parse Result');
+});
+parserPanel.addTab('parseTree', "Parse Tree", null, (c) => {
+  renderInspector(c, parsed?.parseTree, 'Parse Tree');
+});
+parserPanel.addTab('tokens', "Tokens", null, (c) => {
+  renderInspector(c, parsed?.tokens, 'Tokens');
+});
+
+const semanticsCtxModel = monaco.editor.createModel(`return undefined`, 'javascript');
+semanticsCtxModel.onDidChangeContent(() => {
+  const jsCtx = semanticsCtxModel.getValue();
+  streams.semanticsRunData.update('jsCtx', jsCtx, null);
+});
+
+let semanticsRunResult: { ok: boolean, data: unknown } = {
+  ok: false, data: 'Semantics has not been run.'
+};
+streams.triggerSemanticsRun.subscribe(({ semantics, parseTree, jsCtx }, token) => {
+  if (semantics == null && parseTree == null)
+    streams.semanticsRunResult.update({ ok: false, data: 'Missing Semantics and parse tree.' }, token);
+  else if (semantics == null)
+    streams.semanticsRunResult.update({ ok: false, data: 'Missing Semantics.' }, token);
+  else if (parseTree == null)
+    streams.semanticsRunResult.update({ ok: false, data: 'Missing parse tree.' }, token);
+  else {
+    state.runSemantics(semantics, parseTree, jsCtx ?? '').then(
+      data => streams.semanticsRunResult.update({ ok: true, data }, token),
+      err => streams.semanticsRunResult.update({ ok: false, data: err }, token)
+    );
   }
+})
+streams.semanticsRunResult.subscribe(res => {
+  semanticsRunResult = res;
+  parserPanel.refresh('semanticsResult');
 });
-
-parserPanel.addTab('parse', "Parse", null, () => {
-  renderInspector(parserPanel, parsed?.result, 'Parse Result');
-});
-parserPanel.addTab('parseTree', "Parse Tree", null, () => {
-  renderInspector(parserPanel, parsed?.parseTree, 'Parse Tree');
-});
-parserPanel.addTab('tokens', "Tokens", null, () => {
-  renderInspector(parserPanel, parsed?.tokens, 'Tokens');
-});
-
-const semanticsCtxModel = monaco.editor.createModel(`undefined`, 'javascript');
 
 const semanticsRunOverlay = new ButtonOverlay('<span class="codicon codicon-play"></span> Run',
   () => {
-    console.log('test');
+    streams.triggerSemanticsRun.update(semanticsRunData, null);
   });
+
+let semanticsRunData: Partial<SemanticsRunData> = {};
+streams.semanticsRunData.subscribe(data => {
+  semanticsRunData = data;
+});
 
 parserPanel.meditor.onDidChangeModel(e => {
   if (e.newModelUrl === semanticsCtxModel.uri)
@@ -143,9 +226,13 @@ parserPanel.meditor.onDidChangeModel(e => {
     parserPanel.meditor.removeOverlayWidget(semanticsRunOverlay);
 })
 
-parserPanel.addTab('semanticsResult', "Semantics Result", semanticsCtxModel, () => {
-  parserPanel.content.appendChild(
-    document.createElement('pre')
-  );
-  return true;
+parserPanel.addTab('semanticsResult', "Semantics Result", semanticsCtxModel, (c) => {
+  renderInspector2(c, !semanticsRunResult.ok, semanticsRunResult.data, 'Semantics Result');
 });
+
+streams.semanticsRunData.update('jsCtx', semanticsCtxModel.getValue(), null);
+streams.semanticsCode.update('input', semanticsModel.getValue(), null);
+streams.input.update('input', inputModel.getValue(), null);
+streams.input.update('start', 'Entry', null);
+streams.input.update('ws', undefined, null);
+streams.grammar.update(grammarModel.getValue(), null);
