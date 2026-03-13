@@ -35,13 +35,19 @@ const streams = {
   emitted: new Stream<string>(),
   input: new MergeStream<{ input: string, parser: Handle<'parser'>, start: string, ws?: RegExp }>(),
   parsed: new Stream<{ data?: ParsedType, err?: unknown }>(),
-  semanticsCode: new MergeStream<{ input: string, graph: Graph<StateName> }>(),
+  semanticsCode: new MergeStream<{ input: string, graph: Graph<StateName>, enable_memoization: boolean }>(),
   compiledSemantics: new Stream<{ data?: SemanticsType, err?: unknown }>(),
   semanticsRunData: new MergeStream<SemanticsRunData>(),
   triggerSemanticsRun: new Stream<Partial<SemanticsRunData>>(),
   semanticsRunResult: new Stream<{ ok: boolean, data: unknown }>(),
   config: new Stream<string>(),
-  configParsed: new Stream<{ data?: { start: string, ws: RegExp | undefined }, err?: unknown }>()
+  configParsed: new Stream<{
+    data?: {
+      start: string,
+      ws: RegExp | undefined,
+      semantics_enable_memoization: boolean | undefined
+    }, err?: unknown
+  }>()
 };
 
 const grammarModel = monaco.editor.createModel('', 'plaintext');
@@ -102,13 +108,15 @@ semanticsModel.onDidChangeContent(() => {
   const jsCode = semanticsModel.getValue();
   streams.semanticsCode.update('input', jsCode, null);
 });
-streams.semanticsCode.subscribe(({ graph, input: jsCode }, token) => {
+streams.semanticsCode.subscribe((
+  { graph, input: jsCode, enable_memoization }, token
+) => {
   monaco.editor.setModelMarkers(semanticsModel, 'compileSemantics', []);
   if (graph == null || jsCode == null) {
     streams.compiledSemantics.update({}, token);
     return;
   }
-  state.compileSemantics(graph, jsCode).then(
+  state.compileSemantics(graph, jsCode, enable_memoization ?? false).then(
     data => streams.compiledSemantics.update({ data }, token),
     err => streams.compiledSemantics.update({ err }, token)
   );
@@ -140,7 +148,8 @@ grammarPanel.addTab('emit', "Emit", emitModel, () => {
 
 const configModel = monaco.editor.createModel(`return {
   start: "Entry",
-  ws: undefined
+  ws: undefined,
+  semantics_enable_memoization: false
 }`, 'javascript');
 grammarPanel.addTab('config', "Config", configModel);
 configModel.onDidChangeContent(() => {
@@ -153,13 +162,18 @@ streams.config.subscribe((jsCode, token) => {
   try {
     const fn = new Function(jsCode);
     const result = fn();
-    let { start, ws } = result;
+    let { start, ws, semantics_enable_memoization } = result;
     if (typeof start !== 'string')
       throw new TypeError(`config.start must be a string!`, { cause: result });
     if (ws != undefined && !(ws instanceof RegExp))
       throw new TypeError(`config.ws must be a RegExp or unset!`, { cause: result });
+    if (semantics_enable_memoization != undefined && typeof semantics_enable_memoization !== 'boolean')
+      throw new TypeError(`config.semantics_enable_memoization must be a boolean or unset!`, { cause: result });
 
-    const data = { start, ws: (ws ?? undefined) as RegExp | undefined };
+    const data = {
+      start, ws: (ws ?? undefined) as RegExp | undefined,
+      semantics_enable_memoization: (semantics_enable_memoization ?? undefined) as boolean | undefined
+    };
     streams.configParsed.update({ data }, token);
   } catch (err) {
     streams.configParsed.update({ err }, token);
@@ -171,10 +185,12 @@ streams.configParsed.subscribe(({ data, err }, token) => {
     monaco.editor.setModelMarkers(configModel, 'eval', getMarkers(configModel, err));
     streams.input.update('start', undefined, token);
     streams.input.update('ws', undefined, token);
+    streams.semanticsCode.update('enable_memoization', undefined, token);
     return;
   }
   streams.input.update('start', data.start, token);
   streams.input.update('ws', data.ws, token);
+  streams.semanticsCode.update('enable_memoization', data.semantics_enable_memoization, token);
 });
 
 const inputModel = monaco.editor.createModel('', 'plaintext');
@@ -257,7 +273,8 @@ const semanticsRunOverlay = new ButtonOverlay('<span class="codicon codicon-play
 
 let semanticsRunData: Partial<SemanticsRunData> = {};
 streams.semanticsRunData.subscribe(data => {
-  semanticsRunData.semantics?.dispose();
+  if (semanticsRunData.semantics !== data.semantics)
+    semanticsRunData.semantics?.dispose();
   semanticsRunData = data;
 });
 
@@ -272,9 +289,8 @@ parserPanel.addTab('semanticsResult', "Semantics Result", semanticsCtxModel, (c)
   renderInspector2(c, !semanticsRunResult.ok, semanticsRunResult.data, 'Semantics Result');
 });
 
+streams.config.update(configModel.getValue(), null);
 streams.semanticsRunData.update('jsCtx', semanticsCtxModel.getValue(), null);
 streams.semanticsCode.update('input', semanticsModel.getValue(), null);
 streams.input.update('input', inputModel.getValue(), null);
-streams.input.update('start', 'Entry', null);
-streams.input.update('ws', undefined, null);
 streams.grammar.update(grammarModel.getValue(), null);
