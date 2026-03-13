@@ -10,9 +10,13 @@ export class ParseFailedError extends Error {
   }
 }
 
+export function validateResult(result: Result) {
+  if (!result.ok)
+    throw new ParseFailedError(`validateResult: Got failing result`, { cause: result });
+}
+
 export function toParseTree(result: Result, guardFailed = true): RootNode {
-  if (guardFailed && !result.ok)
-    throw new ParseFailedError(`toParseTree: Got failing result`, { cause: result });
+  if (guardFailed) validateResult(result);
   const out: ParseTreeNode[] = [];
   const text: string[] = [];
   const len = transformCST(result, out, text);

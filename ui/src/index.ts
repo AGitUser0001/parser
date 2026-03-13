@@ -10,6 +10,7 @@ await new Promise<void>(r => {
 });
 //#endregion
 import type { Graph, RootNode, StateName } from '../parser_dist/index.js';
+import { validateResult } from '../parser_dist/index.js';
 import { ButtonOverlay, Panel } from './elements.js';
 import { renderGraph, renderInspector, renderInspector2 } from './render.js';
 import { MergeStream, ProxyState, State, Stream, type Handle } from './state.js';
@@ -223,6 +224,11 @@ streams.parsed.subscribe((value, token) => {
     return;
   }
   parsed = data;
+  try {
+    validateResult(data.result);
+  } catch (err) {
+    monaco.editor.setModelMarkers(inputModel, 'parse', getMarkers(inputModel, err));
+  }
 }, (_, token) => {
   parserPanel.refresh('parse');
   parserPanel.refresh('parseTree');
