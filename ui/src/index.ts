@@ -216,6 +216,7 @@ const semanticsRunOverlay = new ButtonOverlay('<span class="codicon codicon-play
 
 let semanticsRunData: Partial<SemanticsRunData> = {};
 streams.semanticsRunData.subscribe(data => {
+  semanticsRunData.semantics?.dispose();
   semanticsRunData = data;
 });
 
