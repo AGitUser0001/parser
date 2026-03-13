@@ -39,7 +39,9 @@ const streams = {
   compiledSemantics: new Stream<{ data?: SemanticsType, err?: unknown }>(),
   semanticsRunData: new MergeStream<SemanticsRunData>(),
   triggerSemanticsRun: new Stream<Partial<SemanticsRunData>>(),
-  semanticsRunResult: new Stream<{ ok: boolean, data: unknown }>()
+  semanticsRunResult: new Stream<{ ok: boolean, data: unknown }>(),
+  config: new Stream<string>(),
+  configParsed: new Stream<{ data?: { start: string, ws: RegExp | undefined }, err?: unknown }>()
 };
 
 const grammarModel = monaco.editor.createModel('', 'plaintext');
@@ -129,11 +131,50 @@ grammarPanel.meditor.onDidChangeModel(e => {
     grammarPanel.meditor.updateOptions({ readOnly: true });
   else
     grammarPanel.meditor.updateOptions({ readOnly: false });
-})
+});
 
 grammarPanel.addTab('emit', "Emit", emitModel, () => {
   emitModel.setValue(emitted);
   return false;
+});
+
+const configModel = monaco.editor.createModel(`return {
+  start: "Entry",
+  ws: undefined
+}`);
+grammarPanel.addTab('config', "Config", configModel);
+configModel.onDidChangeContent(() => {
+  const jsCode = configModel.getValue();
+  streams.config.update(jsCode, null);
+});
+
+streams.config.subscribe((jsCode, token) => {
+  monaco.editor.setModelMarkers(configModel, 'eval', []);
+  try {
+    const fn = new Function(jsCode);
+    const result = fn();
+    let { start, ws } = result;
+    if (typeof start !== 'string')
+      throw new TypeError(`config.start must be a string!`, { cause: result });
+    if (ws != undefined && !(ws instanceof RegExp))
+      throw new TypeError(`config.ws must be a RegExp or unset!`, { cause: result });
+
+    const data = { start, ws: (ws ?? undefined) as RegExp | undefined };
+    streams.configParsed.update({ data }, token);
+  } catch (err) {
+    streams.configParsed.update({ err }, token);
+  }
+});
+
+streams.configParsed.subscribe(({ data, err }, token) => {
+  if (!data) {
+    monaco.editor.setModelMarkers(configModel, 'eval', getMarkers(configModel, err));
+    streams.input.update('start', undefined, token);
+    streams.input.update('ws', undefined, token);
+    return;
+  }
+  streams.input.update('start', data.start, token);
+  streams.input.update('ws', data.ws, token);
 });
 
 const inputModel = monaco.editor.createModel('', 'plaintext');
