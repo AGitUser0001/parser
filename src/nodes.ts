@@ -2,9 +2,17 @@ import type { StateName, IterationOperator } from './graph.js';
 import type { Result, MatcherValue } from './parser.js';
 import type { DeepReplace, Display } from './shared.js';
 
-export function toParseTree(result: Result): RootNode {
-  if (!result.ok)
-    throw new Error(`toParseTree: Got failing result`, { cause: result });
+export class ParseFailedError extends Error {
+  name = 'ParseFailedError';
+  declare cause: Result;
+  constructor(message: string, options: ErrorOptions & { cause: Result }) { 
+    super(...arguments);
+  }
+}
+
+export function toParseTree(result: Result, guardFailed = true): RootNode {
+  if (guardFailed && !result.ok)
+    throw new ParseFailedError(`toParseTree: Got failing result`, { cause: result });
   const out: ParseTreeNode[] = [];
   const text: string[] = [];
   const len = transformCST(result, out, text);
@@ -17,7 +25,6 @@ export function toParseTree(result: Result): RootNode {
 }
 
 function transformCST(result: Result, out: ParseTreeNode[], text: string[]): number {
-  if (!result.ok) return 0;
   let len = 0, wslen = 0;
   if (result.ws) {
     text.push(result.ws);
@@ -26,6 +33,8 @@ function transformCST(result: Result, out: ParseTreeNode[], text: string[]): num
   }
   switch (result.type) {
     case 'terminal':
+      if (result.value == null)
+        break;
       text.push(result.value);
       len += result.value.length;
       out.push(new TerminalNode([], result.pos - len + wslen, result.pos, result.value));
@@ -57,6 +66,7 @@ function transformCST(result: Result, out: ParseTreeNode[], text: string[]): num
       }
       break;
 
+    case 'none':
     case 'lookahead':
       break;
 

@@ -99,6 +99,24 @@ export class Panel {
       tab.classList.add('hide-content');
     }
   }
+
+  refresh() {
+    const name = this.current_tab;
+    if (name == null) return;
+
+    const tab = this.tabs.get(name);
+    if (!tab) return;
+
+    this.content.replaceChildren();
+
+    const onTabChange = this.onTabChange.get(name);
+    if (onTabChange) {
+      const showContent = onTabChange();
+      tab.classList.toggle('hide-content', showContent === false);
+    } else {
+      tab.classList.add('hide-content');
+    }
+  }
 }
 
 export class ButtonOverlay implements monaco.editor.IOverlayWidget {

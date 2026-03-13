@@ -1,86 +1,96 @@
 import { emit, Graph, Semantics, toParseTree, dsl, build, input_to_graph, tokenize } from '../parser_dist/index.js';
-import type { Parser, Result, TokenizerToken, RootNode, StateName, States } from '../parser_dist/index.js';
+import type { Parser, Result, RootNode, StateName } from '../parser_dist/index.js';
+export interface Handle<T extends string> {
+  type: T;
+  id: bigint;
+  dispose(): void;
+}
+
 export class State {
-  input: string = "";
-  states: States<StateName> | null = null;
-  graph: Graph<StateName> | null = null;
-  parser: Parser<StateName> | null = null;
+  #parsers: Map<bigint, Parser<StateName>> = new Map();
+  #semantics: Map<bigint, Semantics<StateName, unknown, unknown>> = new Map();
+  #count = 0n;
+  #mapHandle<T extends string, O>(map: Map<bigint, O>, type: T, value: O) {
+    const id = this.#count++;
+    const handle: Handle<T> = {
+      type, id,
+      dispose: () => void map.delete(id)
+    }
+    map.set(id, value);
+    return handle;
+  }
+  #readHandle<O>(map: Map<bigint, O>, handle: Handle<string>) {
+    if (!map.has(handle.id))
+      throw new Error('Cannot read disposed or invalid handle!', { cause: handle });
+    return map.get(handle.id) as O;
+  }
 
-  result: Result | null = null;
-  parseTree: RootNode | null = null;
-  tokens: TokenizerToken[] | null = null;
-
-  semantics: Semantics<StateName, unknown, unknown> | null = null;
-  semanticsResult: unknown = undefined;
-
-  async compile(): Promise<void> {
-    // Stage 1: DSL → states
-    const states = dsl.load(this.input);
-
-    this.states = states;
-
-    // reset downstream
-    this.graph = null;
-    this.parser = null;
-    this.result = null;
-    this.parseTree = null;
-    this.semantics = null;
-    this.tokens = null;
-    this.semanticsResult = undefined;
-
-    // Stage 2: states → graph
+  async compile(input: string) {
+    const states = dsl.load(input);
     const graph = input_to_graph(states);
-    this.graph = graph;
-
-    // Stage 3: graph → parser
     const parser = build(graph, true);
-    this.parser = parser;
+    const parserHandle = this.#mapHandle(this.#parsers, 'parser', parser);
+
+    return { states, graph, parser: parserHandle };
   }
 
-  async parse(input: string, start: string, ws?: RegExp): Promise<void> {
-    if (this.parser == null)
-      throw new Error('Failed parsing: no parser.');
-    this.result = this.parser(input, start, ws);
-    this.parseTree = null;
-    this.tokens = null;
-    this.semanticsResult = undefined;
+  async parse(parser: Handle<'parser'>, input: string, start: string, ws?: RegExp) {
+    const parserFn = this.#readHandle(this.#parsers, parser);
+    const result = parserFn(input, start, ws);
+    const parseTree = toParseTree(result);
+    const tokens = tokenize(result);
 
-    this.parseTree = toParseTree(this.result!);
-    this.tokens = tokenize(this.result!);
+    return { result, parseTree, tokens };
   }
 
-  async tokenize(): Promise<void> {
-    if (this.result == null)
-      throw new Error('Failed generating tokens: no CST.');
-    this.tokens = tokenize(this.result);
+  async tokenize(result: Result) {
+    return tokenize(result);
   }
 
-  async toParseTree(): Promise<void> {
-    if (this.result == null)
-      throw new Error('Failed generating parse tree: no CST.');
-    this.parseTree = toParseTree(this.result);
-    this.semanticsResult = undefined;
+  async toParseTree(result: Result) {
+    return toParseTree(result, false);
   }
 
-  async compileSemantics(jsCode: string, enable_memoization: boolean = false): Promise<void> {
-    if (this.graph == null)
-      throw new Error('Failed compiling semantics: no graph.');
+  async compileSemantics(graph: Graph<StateName>, jsCode: string, enable_memoization: boolean = false) {
     const fn = new Function(`return (${jsCode})`);
-    this.semantics = new Semantics(this.graph, fn(), enable_memoization);
+    const semantics = new Semantics(graph, fn(), enable_memoization);
+    const semanticsHandle = this.#mapHandle(this.#semantics, 'semantics', semantics);
+    return semanticsHandle;
   }
 
-  async runSemantics(jsCtx: string): Promise<void> {
-    if (this.semantics == null)
-      throw new Error('Failed evaluating semantics: no semantics.');
-    if (this.parseTree == null)
-      throw new Error('Failed evaluating semantics: no parse tree.');
+  async runSemantics(semantics: Handle<'semantics'>, parseTree: RootNode, jsCtx: string): Promise<unknown> {
+    const semanticsO = this.#readHandle(this.#semantics, semantics);
     const fn = new Function(`return (${jsCtx})`);
-    this.semanticsResult = this.semantics.evaluate(this.parseTree, fn());
+    return semanticsO.evaluate(parseTree, fn());
   }
 
-  async emit(): Promise<string> {
-    if (this.parser == null)
-      throw new Error('Failed emitting: no parser.');
-    return emit(this.parser);
+  async emit(parser: Handle<'parser'>): Promise<string> {
+    const parserFn = this.#readHandle(this.#parsers, parser);
+    return emit(parserFn);
   }
-} 
+}
+
+let globalToken = 0n;
+export class Stream<T> {
+  #subs: ((value: T, token: bigint) => void)[] = [];
+  #token = -1n;
+
+  subscribe(...cbs: ((value: T, token: bigint) => void)[]) {
+    this.#subs.push(...cbs);
+  }
+
+  update(value: T, token: bigint | null) {
+    if (token === null) {
+      token = globalToken++;
+    } else {
+      if (token <= this.#token)
+        return false;
+    }
+    this.#token = token;
+
+    for (const cb of this.#subs)
+      cb(value, token);
+
+    return true;
+  }
+}

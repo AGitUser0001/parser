@@ -4,7 +4,7 @@ export {
 } from './graph.js';
 export { build, type Result, type Parser, type ParserFn } from './parser.js';
 export { emit } from './emit.js';
-export { toParseTree, RootNode, StateNode, TerminalNode, IterationNode } from './nodes.js';
+export { toParseTree, RootNode, StateNode, TerminalNode, IterationNode, ParseFailedError } from './nodes.js';
 export type {
   ParseTreeNode, Representation, RootRepresentation, StateRepresentation, TerminalRepresentation, IterationRepresentation
 } from './nodes.js';

@@ -3,8 +3,15 @@ import { Graph } from "../parser_dist/index.js";
 import type { StateName } from "../parser_dist/index.js";
 import { Panel } from "./elements.js";
 
-export function renderGraph(panel: Panel, graph: Graph<StateName>) {
+export function renderGraph(panel: Panel, graph: Graph<StateName> | null | undefined) {
   panel.content.replaceChildren();
+  if (graph == null) {
+    const el = document.createElement("div");
+    el.textContent = "No graph available.";
+
+    panel.content.appendChild(el);
+    return;
+  }
 
   for (const [name, seq] of graph) {
     const el = document.createElement("div");
@@ -72,5 +79,18 @@ function renderNode(node: GraphToken<StateName>): HTMLElement {
   }
 
   el.appendChild(leaf);
-  return el
+  return el;
+}
+
+export function renderInspector(panel: Panel, data: unknown, name?: string, fallback: string = 'No data available.') { 
+  if (data == undefined) {
+    const el = document.createElement('div');
+    el.textContent = fallback;
+    panel.content.appendChild(el);
+    return;
+  }
+  const inspector = document.createElement('ix-object-inspector');
+  inspector.name = name;
+  inspector.data = data;
+  panel.content.appendChild(inspector);
 }
