@@ -29,6 +29,7 @@
   "files": [
     "dist",
     "globals.d.ts",
+    "types",
     "index.html",
     "style.css",
     "parser_dist"
