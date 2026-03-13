@@ -141,7 +141,7 @@ grammarPanel.addTab('emit', "Emit", emitModel, () => {
 const configModel = monaco.editor.createModel(`return {
   start: "Entry",
   ws: undefined
-}`);
+}`, 'javascript');
 grammarPanel.addTab('config', "Config", configModel);
 configModel.onDidChangeContent(() => {
   const jsCode = configModel.getValue();
