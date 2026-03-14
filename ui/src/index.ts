@@ -16,7 +16,7 @@ import { renderGraph, renderInspector, renderInspector2 } from './render.js';
 import { MergeStream, WorkerStateProxy, LocalState, Stream, type Handle, type State } from './state.js';
 import { getMarkers } from './utils.js';
 
-const state = new WorkerStateProxy();
+const state: State = new WorkerStateProxy();
 
 const grammarPanel = new Panel(
   document.getElementById("grammar-panel")!
