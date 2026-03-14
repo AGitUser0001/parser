@@ -1,11 +1,24 @@
-import { emit, Graph, Semantics, toParseTree, dsl, build, input_to_graph, tokenize, ParseFailedError, nodeFromJSON, graph_to_input, type States } from '../parser_dist/index.js';
-import type { Parser, Result, RootNode, StateName } from '../parser_dist/index.js';
+import { emit, Graph, Semantics, toParseTree, dsl, build, input_to_graph, tokenize, ParseFailedError, nodeFromJSON, graph_to_input } from '../parser_dist/index.js';
+import type { Parser, Result, RootNode, StateName, States, TokenizerToken } from '../parser_dist/index.js';
 export interface Handle<T extends string> {
   type: T;
   id: bigint;
 }
 
-export class State {
+export interface State {
+  dispose(handle: Handle<'parser' | 'semantics'>): Promise<void>;
+  compile(input: string): Promise<{ states: MutableStates<StateName>, graph: Graph<StateName>, parser: Handle<'parser'> }>;
+  parse(parser: Handle<'parser'>, input: string, start: string, ws?: RegExp): Promise<{
+    result: Result & { type: 'root' };
+    parseTree: RootNode;
+    tokens: TokenizerToken[];
+  }>;
+  compileSemantics(graph: Graph<StateName>, jsCode: string, enable_memoization?: boolean): Promise<Handle<'semantics'>>;
+  runSemantics(semantics: Handle<'semantics'>, parseTree: RootNode, jsCtx: string): Promise<unknown>;
+  emit(parser: Handle<'parser'>): Promise<string>;
+}
+
+export class LocalState implements State {
   #parsers: Map<bigint, Parser<StateName>> = new Map();
   #semantics: Map<bigint, Semantics<StateName, unknown, unknown>> = new Map();
   #count = 0n;
@@ -41,18 +54,10 @@ export class State {
   async parse(parser: Handle<'parser'>, input: string, start: string, ws?: RegExp) {
     const parserFn = this.#readHandle(this.#parsers, parser);
     const result = parserFn(input, start, ws);
-    const parseTree = await this.toParseTree(result);
+    const parseTree = toParseTree(result, false);
     const tokens = tokenize(result);
 
     return { result, parseTree, tokens };
-  }
-
-  async tokenize(result: Result) {
-    return tokenize(result);
-  }
-
-  async toParseTree(result: Result) {
-    return toParseTree(result, false);
   }
 
   async compileSemantics(graph: Graph<StateName>, jsCode: string, enable_memoization: boolean = false) {
@@ -76,6 +81,7 @@ export class State {
 
 import * as Comlink from 'comlink';
 import type { WorkerState } from './worker/worker.js';
+import type { MutableStates } from '../parser_dist/graph.js';
 
 Comlink.transferHandlers.set('ParseFailedError', {
   canHandle: (obj) => obj instanceof ParseFailedError,
@@ -110,7 +116,7 @@ Comlink.transferHandlers.set('Graph', {
   }
 });
 
-export class WorkerStateProxy {
+export class WorkerStateProxy implements State {
   #WorkerState;
   constructor() {
     const worker = new Worker(new URL('./worker/worker.js', import.meta.url), {
@@ -149,14 +155,6 @@ export class WorkerStateProxy {
   async parse(parser: Handle<'parser'>, input: string, start: string, ws?: RegExp) {
     const { result, parseTree, tokens } = await this.#WorkerState.parse(parser, input, start, ws);
     return { result, parseTree: nodeFromJSON(parseTree), tokens };
-  }
-
-  async tokenize(result: Result) {
-    return this.#WorkerState.tokenize(result);
-  }
-
-  async toParseTree(result: Result) {
-    return nodeFromJSON(await this.#WorkerState.toParseTreeJSON(result));
   }
 
   async compileSemantics(graph: Graph<StateName>, jsCode: string, enable_memoization: boolean = false) {

@@ -13,7 +13,7 @@ import type { Graph, RootNode, StateName } from '../parser_dist/index.js';
 import { validateResult } from '../parser_dist/index.js';
 import { ButtonOverlay, Panel } from './elements.js';
 import { renderGraph, renderInspector, renderInspector2 } from './render.js';
-import { MergeStream, WorkerStateProxy, State, Stream, type Handle } from './state.js';
+import { MergeStream, WorkerStateProxy, LocalState, Stream, type Handle, type State } from './state.js';
 import { getMarkers } from './utils.js';
 
 const state = new WorkerStateProxy();
