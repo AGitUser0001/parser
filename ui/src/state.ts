@@ -80,7 +80,7 @@ export class LocalState implements State {
 }
 
 import * as Comlink from 'comlink';
-import type { WorkerState } from './worker/worker.js';
+import type { WorkerStateHandler } from './worker/worker.js';
 import type { MutableStates } from '../parser_dist/graph.js';
 
 Comlink.transferHandlers.set('ParseFailedError', {
@@ -116,13 +116,13 @@ Comlink.transferHandlers.set('Graph', {
   }
 });
 
-export class WorkerStateProxy implements State {
-  #WorkerState;
+export class WorkerState implements State {
+  #WorkerState: Comlink.Remote<WorkerStateHandler>;
   constructor() {
     const worker = new Worker(new URL('./worker/worker.js', import.meta.url), {
       type: 'module'
     });
-    this.#WorkerState = Comlink.wrap<WorkerState>(worker);
+    this.#WorkerState = Comlink.wrap<WorkerStateHandler>(worker);
   }
   #semantics: Map<bigint, Semantics<StateName, unknown, unknown>> = new Map();
   #count = 0n;

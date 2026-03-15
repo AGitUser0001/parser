@@ -1,10 +1,10 @@
 import * as Comlink from '../../../node_modules/comlink/dist/esm/comlink.js';
 
-import { emit, Graph, Semantics, toParseTree, dsl, build, input_to_graph, tokenize, ParseFailedError, nodeToJSON, graph_to_input, type States, type RootRepresentation } from '../../parser_dist/index.js';
-import type { Parser, Result, RootNode, StateName } from '../../parser_dist/index.js';
+import { emit, toParseTree, dsl, build, input_to_graph, tokenize, ParseFailedError, nodeToJSON, graph_to_input } from '../../parser_dist/index.js';
+import type { Parser, StateName } from '../../parser_dist/index.js';
 import type { Handle } from '../state.js';
 
-export class WorkerState {
+export class WorkerStateHandler {
   #parsers: Map<bigint, Parser<StateName>> = new Map();
   // #semantics: Map<bigint, Semantics<StateName, unknown, unknown>> = new Map();
   #count = 0n;
@@ -21,12 +21,12 @@ export class WorkerState {
       throw new Error('Cannot read disposed or invalid handle!', { cause: handle });
     return map.get(handle.id) as O;
   }
-  async dispose(handle: Handle<'parser'>) {
+  dispose(handle: Handle<'parser'>) {
     if (handle.type === 'parser')
       this.#parsers.delete(handle.id);
   }
 
-  async compile(input: string) {
+  compile(input: string) {
     const states = dsl.load(input);
     const graph = input_to_graph(states);
     const parser = build(graph, true);
@@ -35,39 +35,31 @@ export class WorkerState {
     return { states, graph: graph_to_input(graph), parser: parserHandle };
   }
 
-  async parse(parser: Handle<'parser'>, input: string, start: string, ws?: RegExp) {
+  parse(parser: Handle<'parser'>, input: string, start: string, ws?: RegExp) {
     const parserFn = this.#readHandle(this.#parsers, parser);
     const result = parserFn(input, start, ws);
-    const parseTree = await this.toParseTreeJSON(result);
+    const parseTree = nodeToJSON(toParseTree(result, false));
     const tokens = tokenize(result);
 
     return { result, parseTree, tokens };
   }
 
-  async tokenize(result: Result) {
-    return tokenize(result);
-  }
-
-  async toParseTreeJSON(result: Result): Promise<RootRepresentation> {
-    return nodeToJSON(toParseTree(result, false));
-  }
-
   /*
-  async compileSemantics(graph: Graph<StateName>, jsCode: string, enable_memoization: boolean = false) {
+  compileSemantics(graph: Graph<StateName>, jsCode: string, enable_memoization: boolean = false) {
     const fn = new Function(jsCode);
     const semantics = new Semantics(graph, fn(), enable_memoization);
     const semanticsHandle = this.#mapHandle(this.#semantics, 'semantics', semantics);
     return semanticsHandle;
   }
 
-  async runSemantics(semantics: Handle<'semantics'>, parseTree: RootNode, jsCtx: string): Promise<unknown> {
+  runSemantics(semantics: Handle<'semantics'>, parseTree: RootNode, jsCtx: string): unknown {
     const semanticsO = this.#readHandle(this.#semantics, semantics);
     const fn = new Function(jsCtx);
     return semanticsO.evaluate(parseTree, fn());
   }
   */
 
-  async emit(parser: Handle<'parser'>): Promise<string> {
+  emit(parser: Handle<'parser'>): string {
     const parserFn = this.#readHandle(this.#parsers, parser);
     return emit(parserFn);
   }
@@ -96,4 +88,4 @@ Comlink.transferHandlers.set('ParseFailedError', {
   }
 });
 
-Comlink.expose(new WorkerState());
+Comlink.expose(new WorkerStateHandler());
