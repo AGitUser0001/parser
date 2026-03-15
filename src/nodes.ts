@@ -11,8 +11,67 @@ export class ParseFailedError extends Error {
 }
 
 export function validateResult(result: Result) {
-  if (!result.ok)
-    throw new ParseFailedError(`validateResult: Got failing result`, { cause: result });
+  if (!result.ok) {
+    const path = findDeepestRightmostPath(result);
+    let i = path.length - 1;
+    while (i > 0) { 
+      if (path[i].type === 'state')
+        break;
+      i--;
+    }
+    const txt = generateTextFrom(path.slice(i));
+    throw new ParseFailedError(`validateResult: Got failing result: ${txt}`, { cause: result });
+  }
+}
+
+function generateTextFrom(path: Result[]) { 
+  return path.map(r => {
+    let annotation: string | null = null;
+    switch (r.type) {
+      case 'state':
+        annotation = r.state;
+        break;
+      case 'iteration':
+        annotation = `${r.kind}${r.value.length}`;
+        break;
+      case 'choice':
+        annotation = String(r.alt);
+        break;
+      case 'lookahead':
+        annotation = r.positive ? '&' : '!';
+        break;
+      case 'terminal':
+        annotation = String(r.value);
+        break;
+      case 'sequence':
+        annotation = String(r.value.length);
+        break;
+    }
+    return `${r.type}${r.ok ? '_ok' : ''}${annotation == null ? '' : `(${annotation})`}@${r.pos}`;
+  }).join(' > ');
+}
+
+function findDeepestRightmostPath(root: Result): Result[] {
+  let current = root;
+  let path: Result[] = [];
+
+  while (current) {
+    path.push(current);
+    const val = current.value;
+
+    if (Array.isArray(val)) {
+      if (val.length === 0)
+        break;
+      current = val[val.length - 1];
+    } else if (typeof val === 'object' && val !== null) {
+      current = val;
+    } else {
+      const _exhaustive: string | null = val;
+      break;
+    }
+  }
+
+  return path;
 }
 
 export function toParseTree(result: Result, guardFailed = true): RootNode {

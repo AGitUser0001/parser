@@ -65,27 +65,38 @@ export class WorkerStateHandler {
   }
 }
 
-Comlink.transferHandlers.set('ParseFailedError', {
-  canHandle: (obj) => obj instanceof ParseFailedError,
-  serialize: (obj: ParseFailedError) => {
-    return [{
-      message: obj.message,
-      name: obj.name,
-      stack: obj.stack,
-      cause: obj.cause
-    }, []];
-  },
-  deserialize: ({ message, name, stack, cause }: {
-    message: ParseFailedError['message'],
-    name: ParseFailedError['name'],
-    stack: ParseFailedError['stack'],
-    cause: ParseFailedError['cause']
-  }) => {
-    const error = new ParseFailedError(message, { cause });
-    error.name = name;
-    error.stack = stack;
-    return error;
-  }
-});
+{
+  const throwHandler = Comlink.transferHandlers.get("throw")!;
+  Comlink.transferHandlers.set('throw', {
+    canHandle: throwHandler.canHandle,
+    serialize: (o: { value: any }) => {
+      const v = o.value;
+      if (v instanceof ParseFailedError)
+        return [{
+          isParseFailedError: true,
+          message: v.message,
+          name: v.name,
+          stack: v.stack,
+          cause: v.cause
+        }, []];
+      return throwHandler.serialize(o);
+    },
+    deserialize: (data: any) => {
+      if ('isParseFailedError' in data) {
+        const { message, name, stack, cause }: {
+          message: ParseFailedError['message'],
+          name: ParseFailedError['name'],
+          stack: ParseFailedError['stack'],
+          cause: ParseFailedError['cause']
+        } = data;
+        const error = new ParseFailedError(message, { cause });
+        error.name = name;
+        error.stack = stack;
+        throw error;
+      }
+      return throwHandler.deserialize(data);
+    }
+  });
+}
 
 Comlink.expose(new WorkerStateHandler());
