@@ -46,7 +46,8 @@ const streams = {
     data?: {
       start: string,
       ws: RegExp | undefined,
-      semantics_enable_memoization: boolean | undefined
+      semantics_enable_memoization: boolean | undefined,
+      color_scheme: string | undefined
     }, err?: unknown
   }>()
 };
@@ -152,7 +153,8 @@ grammarPanel.addTab('emit', "Emit", emitModel, () => {
 const configModel = monaco.editor.createModel(`return {
   start: "Entry",
   ws: undefined,
-  semantics_enable_memoization: false
+  semantics_enable_memoization: false,
+  color_scheme: 'light dark'
 }`, 'javascript');
 grammarPanel.addTab('config', "Config", configModel);
 configModel.onDidChangeContent(() => {
@@ -165,17 +167,20 @@ streams.config.subscribe((jsCode, token) => {
   try {
     const fn = new Function(jsCode);
     const result = fn();
-    let { start, ws, semantics_enable_memoization } = result;
+    let { start, ws, semantics_enable_memoization, color_scheme } = result;
     if (typeof start !== 'string')
       throw new TypeError(`config.start must be a string!`, { cause: result });
     if (ws != undefined && !(ws instanceof RegExp))
       throw new TypeError(`config.ws must be a RegExp or unset!`, { cause: result });
     if (semantics_enable_memoization != undefined && typeof semantics_enable_memoization !== 'boolean')
       throw new TypeError(`config.semantics_enable_memoization must be a boolean or unset!`, { cause: result });
+    if (color_scheme != undefined && typeof color_scheme !== 'string')
+      throw new TypeError(`config.color_scheme must be a string or unset!`, { cause: result });
 
     const data = {
       start, ws: (ws ?? undefined) as RegExp | undefined,
-      semantics_enable_memoization: (semantics_enable_memoization ?? undefined) as boolean | undefined
+      semantics_enable_memoization: (semantics_enable_memoization ?? undefined) as boolean | undefined,
+      color_scheme: (color_scheme ?? undefined) as string | undefined
     };
     streams.configParsed.update({ data }, token);
   } catch (err) {
@@ -189,11 +194,13 @@ streams.configParsed.subscribe(({ data, err }, token) => {
     streams.input.update('start', undefined, token);
     streams.input.update('ws', undefined, token);
     streams.semanticsCode.update('enable_memoization', undefined, token);
+    document.documentElement.style.colorScheme = '';
     return;
   }
   streams.input.update('start', data.start, token);
   streams.input.update('ws', data.ws, token);
   streams.semanticsCode.update('enable_memoization', data.semantics_enable_memoization, token);
+  document.documentElement.style.colorScheme = data.color_scheme ?? '';
 });
 
 const inputModel = monaco.editor.createModel('', 'plaintext');
@@ -304,3 +311,38 @@ streams.semanticsRunData.update('jsCtx', semanticsCtxModel.getValue(), null);
 streams.semanticsCode.update('input', semanticsModel.getValue(), null);
 streams.input.update('input', inputModel.getValue(), null);
 streams.grammar.update(grammarModel.getValue(), null);
+
+// -- Theme --
+
+const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)');
+systemPrefersDark.addEventListener('change', () => {
+  updateMonacoTheme();
+});
+
+const DARK_THEME = 'vs-dark';
+const LIGHT_THEME = 'vs';
+
+function updateMonacoTheme() {
+  const colorScheme = window.getComputedStyle(document.documentElement).colorScheme;
+  const currentTheme = (grammarPanel.meditor as any)._themeService._theme.themeName as string;
+  const darKTheme = currentTheme.includes('hc') ? 'hc-black' : DARK_THEME;
+  const lightTheme = currentTheme.includes('hc') ? 'hc-light' : LIGHT_THEME;
+
+  if (colorScheme.includes('light') && colorScheme.includes('dark'))
+    monaco.editor.setTheme(systemPrefersDark.matches ? darKTheme : lightTheme);
+  else if (colorScheme.includes('dark'))
+    monaco.editor.setTheme(darKTheme);
+  else
+    monaco.editor.setTheme(lightTheme);
+};
+
+updateMonacoTheme();
+const observer = new MutationObserver(() => {
+  updateMonacoTheme();
+});
+
+observer.observe(document.documentElement, {
+  attributes: true,
+  attributeFilter: ['style', 'class']
+});
+

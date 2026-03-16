@@ -1,3 +1,7 @@
+html {
+  color-scheme: light dark;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -9,7 +13,7 @@ html, body {
   grid-template-columns: repeat(2, 1fr);
   grid-template-rows: 100%;
   gap: 1px;
-  background: #ccc;
+  background: light-dark(#ccc, #444);
   height: 100vh;
 }
 
@@ -17,7 +21,7 @@ html, body {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: white;
+  background: light-dark(white, black);
   height: 100%;
 }
 
@@ -28,7 +32,6 @@ html, body {
 }
 
 .tab {
-  background: none;
   font: inherit;
   border: unset;
   flex-grow: 1;
@@ -40,13 +43,13 @@ html, body {
   cursor: pointer;
   user-select: none;
   box-sizing: border-box;
-  background: #f5f5f5;
-  outline: 1px solid #ccc;
-  color: #777;
+  background: light-dark(#f5f5f5, #111);
+  outline: 1px solid light-dark(#ccc, #444);
+  color: light-dark(#777, #999);
 }
 
 .panel:focus-within .tab, .tab:hover, .tab:focus-visible {
-  color: #555;
+  color: light-dark(#555, #bbb);
 }
 
 .tabbar:has(.tab.hide-content.active)~.content {
@@ -62,18 +65,18 @@ html, body {
 }
 
 .panel:focus-within .tab:hover, .tab:focus-visible {
-  background: #fff;
+  background: light-dark(#fff, #1b1b1b);
 }
 
 .tab.active {
-  color: #222;
-  background: #fff;
+  color: light-dark(#222, #eee);
+  background: light-dark(#fff, #1b1b1b);
 }
 
 .panel:focus-within .tab.active {
   border-top: 1px solid #0077B6;
   border-bottom: 1px solid #0077B6;
-  color: black;
+  color: light-dark(black, white);
 }
 
 .editor {
@@ -85,7 +88,7 @@ html, body {
   height: 40%;
   min-height: 0;
   overflow: auto;
-  background: #eee;
+  background: light-dark(#eee, #222);
   padding: 1em;
 }
 
@@ -133,4 +136,8 @@ html, body {
 
 .observablehq--inspect {
   white-space: pre-wrap !important;
+}
+
+.content:has(.observablehq) {
+  color-scheme: light;
 }

@@ -6,6 +6,15 @@ export function renderGraph(c: HTMLElement, graph: Graph<StateName> | null | und
   if (graph == null) {
     const el = document.createElement("div");
     el.textContent = "No graph available.";
+    el.style.color = 'red';
+
+    c.appendChild(el);
+    return;
+  }
+
+  if (graph.size < 1) {
+    const el = document.createElement("div");
+    el.textContent = "Graph is empty.";
 
     c.appendChild(el);
     return;
