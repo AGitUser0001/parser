@@ -225,7 +225,7 @@ streams.parsed.subscribe((value, token) => {
   }
   parsed = data;
   try {
-    validateResult(data.result);
+    validateResult(data.result, compiled?.graph);
   } catch (err) {
     monaco.editor.setModelMarkers(inputModel, 'parse', getMarkers(inputModel, err));
   }

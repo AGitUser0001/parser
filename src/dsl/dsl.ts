@@ -408,7 +408,7 @@ export const parse = build(graph);
 export const WS_REGEX = /(?:\s+|\/\/.*$|\/\*[\s\S]*?\*\/)+/my;
 export function load(input: string) {
   const parsed = parse(input, 'Grammar', WS_REGEX);
-  const parseTree = toParseTree(parsed);
+  const parseTree = toParseTree(parsed, graph);
   const result = semantics.evaluate(parseTree);
   assertType(result, 'states');
   return result.v;

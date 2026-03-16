@@ -1,59 +1,11 @@
 import type { StateName, IterationOperator } from './graph.js';
+import { Graph } from './graph.js';
 import type { Result, MatcherValue } from './parser.js';
 import type { DeepReplace, Display, FindKeyByValue } from './shared.js';
-import { findDeepestRightmostPath } from './analyze.js';
+import { validateResult } from './analyze.js';
 
-export class ParseFailedError extends Error {
-  name = 'ParseFailedError';
-  declare cause: Result;
-  constructor(message: string, options: ErrorOptions & { cause: Result }) {
-    super(...arguments);
-  }
-}
-
-export function validateResult(result: Result) {
-  if (!result.ok) {
-    const path = findDeepestRightmostPath(result);
-    let i = path.length - 1;
-    while (i > 0) {
-      if (path[i].type === 'state')
-        break;
-      i--;
-    }
-    const txt = generateTextFrom(path.slice(i));
-    throw new ParseFailedError(`validateResult: Got failing result: ${txt}`, { cause: result });
-  }
-}
-
-function generateTextFrom(path: Result[]) {
-  return path.map(r => {
-    let annotation: string | null = null;
-    switch (r.type) {
-      case 'state':
-        annotation = r.state;
-        break;
-      case 'iteration':
-        annotation = `${r.kind}${r.value.length}`;
-        break;
-      case 'choice':
-        annotation = String(r.alt);
-        break;
-      case 'lookahead':
-        annotation = r.positive ? '&' : '!';
-        break;
-      case 'terminal':
-        annotation = String(r.value);
-        break;
-      case 'sequence':
-        annotation = String(r.value.length);
-        break;
-    }
-    return `${r.type}${r.ok ? '_ok' : ''}${annotation == null ? '' : `(${annotation})`}@${r.pos}`;
-  }).join(' > ');
-}
-
-export function toParseTree(result: Result, guardFailed = true): RootNode {
-  if (guardFailed) validateResult(result);
+export function toParseTree(result: Result, guardFailed: undefined | boolean | Graph<StateName> = true): RootNode {
+  if (guardFailed) validateResult(result, guardFailed instanceof Graph ? guardFailed : undefined);
   const out: ParseTreeNode[] = [];
   const text: string[] = [];
   const len = transformCST(result, out, text);

@@ -1,6 +1,63 @@
 import { Graph, Choice, Sequence, type StateKey, type StateName, type StandaloneOperator, isGeneric, type Segments } from './graph.js';
 import type { Result } from './parser.js';
 
+export class ParseFailedError extends Error {
+  name = 'ParseFailedError';
+  declare cause: Result;
+  constructor(message: string, options: ErrorOptions & { cause: Result }) {
+    super(...arguments);
+  }
+}
+
+export function validateResult(result: Result, graph?: Graph<StateName> | null) {
+  if (!result.ok) {
+    const path = findDeepestRightmostPath(result);
+    let i = path.length - 1;
+    while (i > 0) {
+      if (path[i].type === 'state')
+        break;
+      i--;
+    }
+    const txt = generateTextFrom(path.slice(i));
+    if (graph != undefined) {
+      const expected = findExpectedSet(graph, result);
+      const expectedTxt = expected.size
+        ? `\nExpected one of: ${[...expected].map(r => r.toString()).join(', ')}`
+        : '';
+      throw new ParseFailedError(`validateResult: Got failing result: ${txt}${expectedTxt}`, { cause: result });
+    } else {
+      throw new ParseFailedError(`validateResult: Got failing result: ${txt}`, { cause: result });
+    }
+  }
+}
+
+function generateTextFrom(path: Result[]) {
+  return path.map(r => {
+    let annotation: string | null = null;
+    switch (r.type) {
+      case 'state':
+        annotation = r.state;
+        break;
+      case 'iteration':
+        annotation = `${r.kind}${r.value.length}`;
+        break;
+      case 'choice':
+        annotation = String(r.alt);
+        break;
+      case 'lookahead':
+        annotation = r.positive ? '&' : '!';
+        break;
+      case 'terminal':
+        annotation = String(r.value);
+        break;
+      case 'sequence':
+        annotation = String(r.value.length);
+        break;
+    }
+    return `${r.type}${r.ok ? '_ok' : ''}${annotation == null ? '' : `(${annotation})`}@${r.pos}`;
+  }).join(' > ');
+}
+
 export function findDeepestRightmostPath(root: Result): Result[] {
   let current = root;
   let path: Result[] = [];
@@ -24,11 +81,11 @@ export function findDeepestRightmostPath(root: Result): Result[] {
   return path;
 }
 
-export function error_matcher<K extends StateName>(
+export function findExpectedSet<K extends StateName>(
   graph: Graph<K>,
-  result: Result & { type: 'root' }
+  result: Result
 ): Set<RegExp> {
-  const failurePos = result.pos;
+  const targetPos = result.pos;
   const expected = new Set<RegExp>();
 
   const lenCache = new WeakMap<Result, number>();
@@ -56,7 +113,7 @@ export function error_matcher<K extends StateName>(
   }
 
   function collect(node: Sequence<K> | Choice<K>) {
-    for (const re of collectFIRST(graph, node))
+    for (const re of collectPrefixTerminals(graph, node))
       expected.add(re);
   }
 
@@ -80,16 +137,16 @@ export function error_matcher<K extends StateName>(
         if (!(graphCursor instanceof Sequence)) break;
         const s: Segments<K> = graphCursor.segments;
         const { body } = s;
-        // find the index of the failing child (next in path)
-        const failingChildResult = next;
+        // find the index of the target child (next in path)
+        const targetChildResult = next;
         for (let ci = 0; ci < r.value.length; ci++) {
-          if (r.value[ci] === failingChildResult) {
-            if (startOf(r.value[ci]) === failurePos) {
+          if (r.value[ci] === targetChildResult) {
+            if (startOf(r.value[ci]) === targetPos) {
               const continuation = new Sequence<K>();
               continuation.push(...graphCursor.segments.ops, ...body.slice(ci) as any);
               collect(continuation);
             }
-            // advance graph cursor to the failing child's graph node
+            // advance graph cursor to the target child's graph node
             const graphChild = body[ci];
             if (graphChild instanceof RegExp) {
               graphCursor = null;
@@ -109,7 +166,7 @@ export function error_matcher<K extends StateName>(
         const s: Segments<K> = graphCursor.segments;
         const { body } = s;
 
-        if (startOf(r) === failurePos && r.alt !== null) {
+        if (startOf(r) === targetPos && r.alt !== null) {
           for (let ci = 0; ci < body.length; ci++) {
             if (ci === r.alt) continue;
             const branch = body[ci];
@@ -127,7 +184,7 @@ export function error_matcher<K extends StateName>(
         if (r.alt !== null) {
           const taken = body[r.alt];
           if (taken instanceof RegExp) {
-            if (startOf(r) === failurePos) expected.add(taken);
+            if (startOf(r) === targetPos) expected.add(taken);
             graphCursor = null;
           } else if (typeof taken === 'string') {
             graphCursor = graph.get(taken as K)!;
@@ -156,11 +213,11 @@ export function collectPrefixDeps<K extends StateName>(
   return new Set(v.filter(e => typeof e === 'string'));
 }
 
-export function collectFIRST<K extends StateName>(
+export function collectPrefixTerminals<K extends StateName>(
   graph: Graph<K>,
   data: Sequence<K> | Choice<K>
 ): Set<RegExp> {
-  const { nullable, v } = prefix(graph, data);
+  const { nullable, v } = prefix(graph, data, true);
   return new Set(v.filter(e => e instanceof RegExp));
 }
 
@@ -168,18 +225,22 @@ type TV<K extends StateName> = StateKey<K> | RegExp;
 
 export function prefix<K extends StateName>(
   graph: Graph<K>,
-  data: Sequence<K> | Choice<K>
+  data: Sequence<K> | Choice<K>,
+  follow = false,
+  seen: string[] = []
 ): { nullable: boolean; v: TV<K>[]; } {
   if (data instanceof Choice)
-    return prefixChoice(graph, data);
+    return prefixChoice(graph, data, follow, seen);
   if (data instanceof Sequence)
-    return prefixSeq(graph, data);
+    return prefixSeq(graph, data, follow, seen);
   throw new TypeError(`Invalid data passed to 'prefix'`, { cause: data });
 }
 
 function prefixSeq<K extends StateName>(
   graph: Graph<K>,
-  data: Sequence<K>
+  data: Sequence<K>,
+  follow: boolean,
+  seen: string[]
 ): { nullable: boolean; v: TV<K>[]; } {
   const { ops, body } = data.segments;
   let nullable = false;
@@ -198,11 +259,16 @@ function prefixSeq<K extends StateName>(
     } else if (typeof term === 'string') {
       if (!isGeneric(term)) {
         output.push(term);
-        if (isSolid(graph, graph.get(term)!, [term]))
+        if (follow && !seen.includes(term)) {
+          const result = prefix(graph, graph.get(term)!, follow, [...seen, term]);
+          output.push(...result.v);
+          if (!result.nullable)
+            return { nullable, v: output };
+        } else if (isSolid(graph, graph.get(term)!, [term]))
           return { nullable, v: output };
       }
     } else {
-      const result = prefix(graph, term);
+      const result = prefix(graph, term, follow, seen);
       output.push(...result.v);
       if (!result.nullable)
         return { nullable, v: output };
@@ -213,7 +279,9 @@ function prefixSeq<K extends StateName>(
 
 function prefixChoice<K extends StateName>(
   graph: Graph<K>,
-  data: Choice<K>
+  data: Choice<K>,
+  follow: boolean,
+  seen: string[]
 ): { nullable: boolean; v: TV<K>[]; } {
   const { ops, body } = data.segments;
 
@@ -234,6 +302,8 @@ function prefixChoice<K extends StateName>(
     } else if (typeof term === 'string') {
       if (isGeneric(term)) {
         result = { nullable: true, v: [] };
+      } else if (follow && !seen.includes(term)) {
+        result = prefix(graph, graph.get(term)!, follow, [...seen, term]);
       } else {
         const solid = isSolid(graph, graph.get(term)!, [term]);
         result = {
@@ -243,7 +313,7 @@ function prefixChoice<K extends StateName>(
       }
 
     } else {
-      result = prefix(graph, term);
+      result = prefix(graph, term, follow, seen);
     }
 
     nullable ||= result.nullable;
