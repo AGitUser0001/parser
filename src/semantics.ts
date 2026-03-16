@@ -138,6 +138,7 @@ export class Semantics<K extends StateName, R = any, C = void> extends MapView<S
         Semantics.create<K, R, C>(graph, spec, enable_memoization);
       result.for = <K extends StateName>(graph: Graph<K>) =>
         Semantics.for<K>(graph).with<C>().returns<R>();
+      return result;
     };
     return result;
   }
