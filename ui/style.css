@@ -138,6 +138,6 @@ html, body {
   white-space: pre-wrap !important;
 }
 
-.content:has(.observablehq) {
-  color-scheme: light;
+.content > .observablehq {
+  filter: invert(1) hue-rotate(180deg);
 }
