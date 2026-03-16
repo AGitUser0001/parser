@@ -218,7 +218,7 @@ export function collectPrefixDeps<K extends StateName>(
   graph: Graph<K>,
   data: Sequence<K> | Choice<K>
 ): Set<StateKey<K>> {
-  const { nullable, v } = prefix(graph, data);
+  const { nullable, v } = prefix(graph, data, false);
   return new Set(v.filter(e => typeof e === 'string'));
 }
 
@@ -235,7 +235,7 @@ type TV<K extends StateName> = StateKey<K> | RegExp;
 export function prefix<K extends StateName>(
   graph: Graph<K>,
   data: Sequence<K> | Choice<K>,
-  follow = false,
+  follow: boolean,
   seen: string[] = []
 ): { nullable: boolean; v: TV<K>[]; } {
   if (data instanceof Choice)
