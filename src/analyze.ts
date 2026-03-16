@@ -97,7 +97,7 @@ export function findExpectedSet<K extends StateName>(
     let len: number;
     switch (r.type) {
       case 'none': len = 0; break;
-      case 'terminal': len = r.ok ? r.value.length : 0; break;
+      case 'terminal': len = r.value == null ? 0 : r.value.length; break;
       case 'state': len = lenOf(r.value); break;
       case 'choice': len = lenOf(r.value); break;
       case 'rewind': len = 0; break;
@@ -200,6 +200,12 @@ export function findExpectedSet<K extends StateName>(
 
       case 'iteration': {
         // graphCursor stays the same — iteration repeats the same graph node
+        if (r.ok) {
+          if (r.pos === targetPos) {
+            // iteration could repeat — collect FIRST of body
+            collect(graphCursor!);
+          }
+        }
         break;
       }
     }
