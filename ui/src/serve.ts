@@ -12,7 +12,7 @@ const servePublic = serveStatic(rootDir, { index: ['index.html'] });
 const serveModules = serveStatic(join(rootDir, '../node_modules'), { redirect: false, index: [] });
 
 const server = http.createServer((req, res) => {
-  if (req.url != null && req.url.startsWith('/node_modules')) {
+  if (req.url != null && /^\/*node_modules/.test(req.url)) {
     req.url = req.url.replace('/node_modules', '');
     if (!req.url.startsWith('/')) req.url = '/';
 
