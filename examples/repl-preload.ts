@@ -6,6 +6,7 @@ import * as semantics from 'parser/semantics';
 import * as tokenize from 'parser/tokenize';
 import * as dsl from 'parser/dsl';
 import * as emit from 'parser/emit';
+import * as analyze from 'parser/analyze';
 
 //#region tests
 console.time('transform');
@@ -163,7 +164,7 @@ export function timeof<T extends (...args: any[]) => any>(fn: T, ...args: Parame
 
 import * as preload from './repl-preload.js';
 import { readFileSync, writeFileSync } from 'node:fs';
-for (const item of [graph, parser, scc, nodes, semantics, tokenize, emit, {
+for (const item of [graph, parser, scc, nodes, semantics, tokenize, emit, analyze, {
   dsl, readFileSync, writeFileSync
 }, preload] as any[]) {
   for (const key of Object.keys(item)) {

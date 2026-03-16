@@ -1,11 +1,12 @@
 import type { StateName, IterationOperator } from './graph.js';
 import type { Result, MatcherValue } from './parser.js';
 import type { DeepReplace, Display, FindKeyByValue } from './shared.js';
+import { findDeepestRightmostPath } from './analyze.js';
 
 export class ParseFailedError extends Error {
   name = 'ParseFailedError';
   declare cause: Result;
-  constructor(message: string, options: ErrorOptions & { cause: Result }) { 
+  constructor(message: string, options: ErrorOptions & { cause: Result }) {
     super(...arguments);
   }
 }
@@ -14,7 +15,7 @@ export function validateResult(result: Result) {
   if (!result.ok) {
     const path = findDeepestRightmostPath(result);
     let i = path.length - 1;
-    while (i > 0) { 
+    while (i > 0) {
       if (path[i].type === 'state')
         break;
       i--;
@@ -24,7 +25,7 @@ export function validateResult(result: Result) {
   }
 }
 
-function generateTextFrom(path: Result[]) { 
+function generateTextFrom(path: Result[]) {
   return path.map(r => {
     let annotation: string | null = null;
     switch (r.type) {
@@ -49,29 +50,6 @@ function generateTextFrom(path: Result[]) {
     }
     return `${r.type}${r.ok ? '_ok' : ''}${annotation == null ? '' : `(${annotation})`}@${r.pos}`;
   }).join(' > ');
-}
-
-function findDeepestRightmostPath(root: Result): Result[] {
-  let current = root;
-  let path: Result[] = [];
-
-  while (current) {
-    path.push(current);
-    const val = current.value;
-
-    if (Array.isArray(val)) {
-      if (val.length === 0)
-        break;
-      current = val[val.length - 1];
-    } else if (typeof val === 'object' && val !== null) {
-      current = val;
-    } else {
-      const _exhaustive: string | null = val;
-      break;
-    }
-  }
-
-  return path;
 }
 
 export function toParseTree(result: Result, guardFailed = true): RootNode {
