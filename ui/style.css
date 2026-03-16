@@ -61,7 +61,7 @@ html, body {
 }
 
 .tabbar:has(.tab.hide-editor.active)~.content {
-  height: 100%;
+  height: 100% !important;
 }
 
 .panel:focus-within .tab:hover, .tab:focus-visible {
@@ -82,6 +82,34 @@ html, body {
 .editor {
   flex-grow: 1;
   min-height: 0;
+}
+
+.content:has(> .p10) {
+  height: 10%;
+}
+.content:has(> .p20) {
+  height: 20%;
+}
+.content:has(> .p30) {
+  height: 30%;
+}
+.content:has(> .p40) {
+  height: 40%;
+}
+.content:has(> .p50) {
+  height: 50%;
+}
+.content:has(> .p60) {
+  height: 60%;
+}
+.content:has(> .p70) {
+  height: 70%;
+}
+.content:has(> .p80) {
+  height: 80%;
+}
+.content:has(> .p90) {
+  height: 90%;
 }
 
 .content {
@@ -138,6 +166,6 @@ html, body {
   white-space: pre-wrap !important;
 }
 
-[data-theme='dark'] .content > .observablehq {
+[data-theme='dark'] .content>.observablehq {
   filter: invert(1) hue-rotate(180deg);
 }

@@ -307,6 +307,7 @@ parserPanel.meditor.onDidChangeModel(e => {
 })
 
 parserPanel.addTab('semanticsResult', "Semantics Result", semanticsCtxModel, (c) => {
+  c.classList.add('p70');
   renderInspector2(c, !semanticsRunResult.ok, semanticsRunResult.data, 'Semantics Result');
 });
 
