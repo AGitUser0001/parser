@@ -21,9 +21,12 @@ export function validateResult(result: Result, graph?: Graph<StateName> | null) 
     const txt = generateTextFrom(path.slice(i));
     if (graph != undefined) {
       const expected = findExpectedSet(graph, result);
-      const expectedTxt = expected.size
-        ? `\nExpected one of: ${[...expected].map(r => r.toString()).join(', ')}`
-        : '';
+      const expectedStr = [...expected].map(r => r.toString()).join(', ');
+      const expectedTxt = expected.size === 1 ?
+        `\nExpected ${expectedStr}` :
+        expected.size
+          ? `\nExpected one of: ${expectedStr}`
+          : '';
       throw new ParseFailedError(`validateResult: Got failing result: ${txt}${expectedTxt}`, { cause: result });
     } else {
       throw new ParseFailedError(`validateResult: Got failing result: ${txt}`, { cause: result });
