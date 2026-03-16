@@ -199,7 +199,7 @@ export class Stream<T> {
     if (token === null) {
       token = globalToken++;
     } else {
-      if (token <= this.#token)
+      if (token < this.#token)
         return false;
     }
     this.#token = token;
@@ -224,7 +224,7 @@ export class MergeStream<O extends Record<string, unknown>> {
     if (token === null) {
       token = globalToken++;
     } else {
-      if (token <= (this.#tokens[label] ?? -1n))
+      if (token < (this.#tokens[label] ?? -1n))
         return false;
     }
     this.#tokens[label] = token;
