@@ -138,6 +138,6 @@ html, body {
   white-space: pre-wrap !important;
 }
 
-.content > .observablehq {
+[data-theme='dark'] .content > .observablehq {
   filter: invert(1) hue-rotate(180deg);
 }

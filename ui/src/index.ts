@@ -328,12 +328,16 @@ function updateMonacoTheme() {
   const darKTheme = currentTheme.includes('hc') ? 'hc-black' : DARK_THEME;
   const lightTheme = currentTheme.includes('hc') ? 'hc-light' : LIGHT_THEME;
 
-  if (colorScheme.includes('light') && colorScheme.includes('dark'))
+  if (colorScheme.includes('light') && colorScheme.includes('dark')) {
     monaco.editor.setTheme(systemPrefersDark.matches ? darKTheme : lightTheme);
-  else if (colorScheme.includes('dark'))
+    document.documentElement.setAttribute('data-theme', systemPrefersDark.matches ? 'dark' : 'light');
+  } else if (colorScheme.includes('dark')) {
     monaco.editor.setTheme(darKTheme);
-  else
+    document.documentElement.setAttribute('data-theme', 'dark');
+  } else {
     monaco.editor.setTheme(lightTheme);
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
 };
 
 updateMonacoTheme();
