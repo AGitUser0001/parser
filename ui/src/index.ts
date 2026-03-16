@@ -80,8 +80,8 @@ streams.compiled.subscribe(({ data, err }, token) => {
   compiled = data;
 }, (_, token) => {
   grammarPanel.refresh('graph');
-  streams.input.update('parser', compiled?.parser, token);
-  streams.semanticsCode.update('graph', compiled?.graph, token);
+  streams.input.update([['parser', compiled?.parser]], token);
+  streams.semanticsCode.update([['graph', compiled?.graph]], token);
 }, (_, token) => {
   if (!compiled) {
     streams.emitted.update('', token);
@@ -110,7 +110,7 @@ grammarPanel.addTab('semanticsCode', "Semantics", semanticsModel);
 
 semanticsModel.onDidChangeContent(() => {
   const jsCode = semanticsModel.getValue();
-  streams.semanticsCode.update('input', jsCode, null);
+  streams.semanticsCode.update([['input', jsCode]], null);
 });
 streams.semanticsCode.subscribe((
   { graph, input: jsCode, enable_memoization }, token
@@ -128,7 +128,7 @@ streams.semanticsCode.subscribe((
 streams.compiledSemantics.subscribe((value, token) => {
   const { data, err } = value;
   monaco.editor.setModelMarkers(semanticsModel, 'compileSemantics', []);
-  streams.semanticsRunData.update('semantics', data, token);
+  streams.semanticsRunData.update([['semantics', data]], token);
   if (!data) {
     if ('err' in value)
       monaco.editor.setModelMarkers(semanticsModel, 'compileSemantics', getMarkers(semanticsModel, err));
@@ -190,16 +190,20 @@ streams.config.subscribe((jsCode, token) => {
 streams.configParsed.subscribe(({ data, err }, token) => {
   if (!data) {
     monaco.editor.setModelMarkers(configModel, 'eval', getMarkers(configModel, err));
-    streams.input.update('start', undefined, token);
-    streams.input.update('ws', undefined, token);
-    streams.semanticsCode.update('enable_memoization', undefined, token);
+    streams.input.update([
+      ['start', undefined],
+      ['ws', undefined]
+    ], token);
+    streams.semanticsCode.update([['enable_memoization', undefined]], token);
     document.documentElement.style.colorScheme = '';
     return;
   }
   monaco.editor.setModelMarkers(configModel, 'eval', []);
-  streams.input.update('start', data.start, token);
-  streams.input.update('ws', data.ws, token);
-  streams.semanticsCode.update('enable_memoization', data.semantics_enable_memoization, token);
+  streams.input.update([
+    ['start', data.start],
+    ['ws', data.ws]
+  ], token);
+  streams.semanticsCode.update([['enable_memoization', data.semantics_enable_memoization]], token);
   document.documentElement.style.colorScheme = data.color_scheme ?? '';
 });
 
@@ -207,7 +211,7 @@ const inputModel = monaco.editor.createModel('', 'plaintext');
 parserPanel.addTab('input', "Input", inputModel);
 inputModel.onDidChangeContent(() => {
   const input = inputModel.getValue();
-  streams.input.update('input', input, null);
+  streams.input.update([['input', input]], null);
 });
 
 streams.input.subscribe(({ input, parser, start, ws }, token) => {
@@ -240,7 +244,7 @@ streams.parsed.subscribe((value, token) => {
   parserPanel.refresh('parse');
   parserPanel.refresh('parseTree');
   parserPanel.refresh('tokens');
-  streams.semanticsRunData.update('parseTree', parsed?.parseTree, token);
+  streams.semanticsRunData.update([['parseTree', parsed?.parseTree]], token);
 });
 
 parserPanel.addTab('parse', "Parse", null, (c) => {
@@ -256,7 +260,7 @@ parserPanel.addTab('tokens', "Tokens", null, (c) => {
 const semanticsCtxModel = monaco.editor.createModel(`return undefined`, 'javascript');
 semanticsCtxModel.onDidChangeContent(() => {
   const jsCtx = semanticsCtxModel.getValue();
-  streams.semanticsRunData.update('jsCtx', jsCtx, null);
+  streams.semanticsRunData.update([['jsCtx', jsCtx]], null);
 });
 
 let semanticsRunResult: { ok: boolean, data: unknown } = {
@@ -307,9 +311,9 @@ parserPanel.addTab('semanticsResult', "Semantics Result", semanticsCtxModel, (c)
 });
 
 streams.config.update(configModel.getValue(), null);
-streams.semanticsRunData.update('jsCtx', semanticsCtxModel.getValue(), null);
-streams.semanticsCode.update('input', semanticsModel.getValue(), null);
-streams.input.update('input', inputModel.getValue(), null);
+streams.semanticsRunData.update([['jsCtx', semanticsCtxModel.getValue()]], null);
+streams.semanticsCode.update([['input', semanticsModel.getValue()]], null);
+streams.input.update([['input', inputModel.getValue()]], null);
 streams.grammar.update(grammarModel.getValue(), null);
 
 // -- Theme --

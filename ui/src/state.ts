@@ -196,12 +196,14 @@ export class Stream<T> {
   }
 
   update(value: T, token: bigint | null) {
-    if (token === null) {
+    if (token === null)
       token = globalToken++;
-    } else {
-      if (token < this.#token)
-        return false;
-    }
+    if (token < this.#token)
+      return false;
+    if (token === this.#token)
+      throw new Error('MergeStream Conflict: tried to send update twice with same token', {
+        cause: { value, token }
+      });
     this.#token = token;
 
     for (const cb of this.#subs)
@@ -220,15 +222,21 @@ export class MergeStream<O extends Record<string, unknown>> {
     this.#subs.push(...cbs);
   }
 
-  update<K extends keyof O>(label: K, value: O[K] | undefined, token: bigint | null) {
-    if (token === null) {
+  update(values: Iterable<{
+    [K in keyof O]: [K, O[K] | undefined]
+  }[keyof O]>, token: bigint | null) {
+    if (token === null)
       token = globalToken++;
-    } else {
+    for (const [label, value] of values) { 
       if (token < (this.#tokens[label] ?? -1n))
         return false;
+      if (token === (this.#tokens[label] ?? -1n))
+        throw new Error('MergeStream Conflict: tried to send update twice to same label with same token', {
+          cause: { label, value, token }
+        });
+      this.#tokens[label] = token;
+      this.#values[label] = value;
     }
-    this.#tokens[label] = token;
-    this.#values[label] = value;
 
     const data = { ...this.#values };
     for (const cb of this.#subs)
