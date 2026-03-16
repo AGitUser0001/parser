@@ -59,7 +59,6 @@ grammarModel.onDidChangeContent(() => {
   streams.grammar.update(dslCode, null);
 });
 streams.grammar.subscribe((dslCode, token) => {
-  monaco.editor.setModelMarkers(grammarModel, 'compile', []);
   state.compile(dslCode).then(
     data => streams.compiled.update({ data }, token),
     err => streams.compiled.update({ err }, token)
@@ -77,6 +76,7 @@ streams.compiled.subscribe(({ data, err }, token) => {
   }
   if (compiled?.parser)
     state.dispose(compiled?.parser);
+  monaco.editor.setModelMarkers(grammarModel, 'compile', []);
   compiled = data;
 }, (_, token) => {
   grammarPanel.refresh('graph');
@@ -115,7 +115,6 @@ semanticsModel.onDidChangeContent(() => {
 streams.semanticsCode.subscribe((
   { graph, input: jsCode, enable_memoization }, token
 ) => {
-  monaco.editor.setModelMarkers(semanticsModel, 'compileSemantics', []);
   if (graph == null || jsCode == null) {
     streams.compiledSemantics.update({}, token);
     return;
@@ -128,6 +127,7 @@ streams.semanticsCode.subscribe((
 
 streams.compiledSemantics.subscribe((value, token) => {
   const { data, err } = value;
+  monaco.editor.setModelMarkers(semanticsModel, 'compileSemantics', []);
   streams.semanticsRunData.update('semantics', data, token);
   if (!data) {
     if ('err' in value)
@@ -163,7 +163,6 @@ configModel.onDidChangeContent(() => {
 });
 
 streams.config.subscribe((jsCode, token) => {
-  monaco.editor.setModelMarkers(configModel, 'eval', []);
   try {
     const fn = new Function(jsCode);
     const result = fn();
@@ -197,6 +196,7 @@ streams.configParsed.subscribe(({ data, err }, token) => {
     document.documentElement.style.colorScheme = '';
     return;
   }
+  monaco.editor.setModelMarkers(configModel, 'eval', []);
   streams.input.update('start', data.start, token);
   streams.input.update('ws', data.ws, token);
   streams.semanticsCode.update('enable_memoization', data.semantics_enable_memoization, token);
@@ -211,7 +211,6 @@ inputModel.onDidChangeContent(() => {
 });
 
 streams.input.subscribe(({ input, parser, start, ws }, token) => {
-  monaco.editor.setModelMarkers(inputModel, 'parse', []);
   if (parser == null || input == null || start == null) {
     streams.parsed.update({}, token);
     return;
@@ -224,6 +223,7 @@ streams.input.subscribe(({ input, parser, start, ws }, token) => {
 let parsed: ParsedType | null = null;
 streams.parsed.subscribe((value, token) => {
   const { data, err } = value;
+  monaco.editor.setModelMarkers(inputModel, 'parse', []);
   if (!data) {
     parsed = null;
     if ('err' in value)
