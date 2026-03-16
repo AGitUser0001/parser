@@ -22,7 +22,7 @@ interface EmitCtx<K extends StateName> {
   name(): string;
 };
 
-const INVALID_RE = /[^$_\p{ID_Start}\p{ID_Continue}\u200c\u200d]+/ug;
+const INVALID_RE = /[^$_\p{ID_Start}\p{ID_Continue}\u200c\u200d]/ug;
 const IS_VAR_RE = /^[$_\p{ID_Start}](?:[$_\u200C\u200D\p{ID_Continue}])*$/u;
 export function emit<K extends StateName>(
   parser: Parser<K>
@@ -38,7 +38,7 @@ export function emit<K extends StateName>(
   }
   const { states } = parser.resources;
   for (const [stateKey, state] of states) {
-    const nK = `State${ctx.name()}${stateKey.replaceAll(INVALID_RE, '')}`;
+    const nK = `State${ctx.name()}${stateKey.replaceAll(INVALID_RE, '_')}`;
     const v = emitValue(ctx, state, nK);
     if (!ctx.vars.has(nK)) {
       ctx.vars.set(nK, v);
