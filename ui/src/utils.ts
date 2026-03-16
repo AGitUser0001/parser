@@ -16,7 +16,7 @@ export function getMarkers(model: monaco.editor.ITextModel, ...errs: unknown[]) 
       startLineNumber: pos.lineNumber,
       startColumn: pos.column,
       endLineNumber: pos.lineNumber,
-      endColumn: pos.column,
+      endColumn: pos.column + 1,
       message: String(err),
       severity: monaco.MarkerSeverity.Error
     });
