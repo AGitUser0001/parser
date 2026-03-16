@@ -26,7 +26,7 @@ export function validateResult(result: Result, graph?: Graph<StateName> | null) 
         `\nExpected ${expectedStr}` :
         expected.size
           ? `\nExpected one of: ${expectedStr}`
-          : 'Expected end of input';
+          : '\nExpected end of input';
       throw new ParseFailedError(`validateResult: Got failing result: ${txt}${expectedTxt}`, { cause: result });
     } else {
       throw new ParseFailedError(`validateResult: Got failing result: ${txt}`, { cause: result });
