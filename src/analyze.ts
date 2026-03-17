@@ -438,8 +438,7 @@ function prefixSeq<K extends StateName>(
   for (const term of body) {
     if (term instanceof RegExp) {
       output.push(term);
-      term.lastIndex = 0;
-      if (!term.test('')) {
+      if (!nullableRegex(term)) {
         return { nullable, v: output };
       }
     } else if (typeof term === 'string') {
@@ -487,8 +486,7 @@ function prefixChoice<K extends StateName>(
     let result: { nullable: boolean; v: TV<K>[]; };
 
     if (term instanceof RegExp) {
-      term.lastIndex = 0;
-      result = { nullable: term.test(''), v: [term] };
+      result = { nullable: nullableRegex(term), v: [term] };
 
     } else if (typeof term === 'string') {
       if (isGeneric(term)) {
@@ -522,7 +520,7 @@ function prefixChoice<K extends StateName>(
 const nullableOperators = new Set<StandaloneOperator>([
   '*', '?', '&', '!'
 ]);
-function isSolid<K extends StateName>(
+export function isSolid<K extends StateName>(
   graph: Graph<K>,
   data: Sequence<K> | Choice<K>,
   seen: string[]
@@ -535,8 +533,7 @@ function isSolid<K extends StateName>(
   let v = true;
   for (const term of body) {
     if (term instanceof RegExp) {
-      term.lastIndex = 0;
-      if (!term.test('')) {
+      if (!nullableRegex(term)) {
         if (!isChoice) return true;
       } else v = false;
     } else if (typeof term === 'string') {
@@ -551,4 +548,11 @@ function isSolid<K extends StateName>(
   }
   if (isChoice) return v;
   return false;
+}
+
+export function nullableRegex(re: RegExp) { 
+  if (re.sticky) { 
+    re.lastIndex = 0;
+  }
+  return re.test('');
 }
