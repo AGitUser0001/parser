@@ -13,4 +13,4 @@ export { Semantics, type ParseNode } from './semantics.js';
 export * as dsl from './dsl/dsl.js';
 export { tokenize, mapTokens } from './tokenize.js';
 export type { Token as TokenizerToken, TokenMapperData, TokenMapperResult } from './tokenize.js';
-export { validateResult, ParseFailedError } from './analyze.js';
+export { validateResult, ParseFailedError, findExpectedSet, findIdealPath, findRightmostPath, findPathToPos } from './analyze.js';
