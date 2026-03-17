@@ -21,17 +21,17 @@ Sequence = {
 }
 
 // Must be Group first, Call before Reference
-Term = (Group | Terminal | Call | Reference)/
+Term = prefixes (Group | Terminal | Call | Reference)/ #postfixes
 
-Group = prefixes '(' Choice_inner ')' #postfixes
+Group = '(' Choice_inner ')'
 
-Reference = prefixes (identifier | generic) #postfixes
+Reference = identifier | generic
 
-Call = prefixes identifier '<' Arg (',' Arg)* '>' #postfixes
+Call = identifier '<' Arg (',' Arg)* '>'
 
 Arg = identifier '=' Choice_outer
 
-Terminal = prefixes (terminal | string) #postfixes
+Terminal = terminal | string
 
 postfixes = postfix*
 

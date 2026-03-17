@@ -22,16 +22,16 @@ export const grammar = typed_states({
   },
 
   // Must be Group first, Call before Reference
-  Term: [['/', 'Group', 'Terminal', 'Call', 'Reference']],
+  Term: ['prefixes', ['/', 'Group', 'Terminal', 'Call', 'Reference'], '#postfixes'],
 
-  Group: ['prefixes', /\(/, 'Choice_inner', /\)/, '#postfixes'],
+  Group: [/\(/, 'Choice_inner', /\)/],
 
-  Reference: ['prefixes', ['identifier', 'generic'], '#postfixes'],
+  Reference: [['identifier', 'generic']],
 
-  Call: ['prefixes', 'identifier', /</, 'Arg', [['*', /,/, 'Arg']], />/, '#postfixes'],
+  Call: ['identifier', /</, 'Arg', [['*', /,/, 'Arg']], />/],
   Arg: ['identifier', /=/, 'Choice_outer'],
 
-  Terminal: ['prefixes', ['terminal', 'string'], '#postfixes'],
+  Terminal: [['terminal', 'string']],
 
   postfixes: '*postfix',
   postfix: /[*?+@/]/,
@@ -241,64 +241,62 @@ export const semantics = createSemantics<Data<StateName>>({
     return this.use('Choice_inner', _pipeNode, seqNode, seqIter);
   },
 
-  Group(prefixes, lp, choiceNode, rp, postfixes) {
+  Term(prefixes, node, postfixes) {
+    const term = this(node);
+    assertType(term, 'input');
+    assertSubType(term, 'choice');
+
     const prefixA = this(prefixes);
     assertType(prefixA, 'operators');
-
-    const choice = this(choiceNode);
-    assertType(choice, 'input');
-    assertSubType(choice, 'choice');
 
     const postfixA = this(postfixes);
     assertType(postfixA, 'operators');
 
     const operators = [...prefixA.v, ...postfixA.v];
-    if (choice.v.length === 1 && Array.isArray(choice.v[0])) {
+    if (term.v.length === 1 && Array.isArray(term.v[0])) {
       if (!operators.includes('/'))
         return {
           t: 'input',
           subType: 'choice',
-          v: [[...operators, ...choice.v[0]]]
+          v: [[...operators, ...term.v[0]]]
         };
     }
 
     return {
       t: 'input',
       subType: 'choice',
-      v: [...operators, ...choice.v]
-    };
+      v: [...operators, ...term.v]
+    }
   },
 
-  Reference(prefixes, identifierNode, postfixes) {
+  Group(lp, choiceNode, rp) {
+    const choice = this(choiceNode);
+    assertType(choice, 'input');
+    assertSubType(choice, 'choice');
+
+    return choice;
+  },
+
+  Reference(identifierNode) {
     const name = str(this(identifierNode)) as StateName;
 
-    const prefixA = this(prefixes);
-    assertType(prefixA, 'operators');
-
-    const postfixA = this(postfixes);
-    assertType(postfixA, 'operators');
     return {
       t: 'input',
       subType: 'choice',
-      v: [...prefixA.v, ...postfixA.v, name]
+      v: [name]
     };
   },
 
-  Terminal(prefixes, terminalNode, postfixes) {
-    const prefixA = this(prefixes);
-    assertType(prefixA, 'operators');
-
+  Terminal(terminalNode) {
     const terminal = this(terminalNode);
     assertType(terminal, 'input');
     if (!(terminal.v instanceof RegExp))
       throw new TypeError(`Expected RegExp`, { cause: { terminalNode, terminal } });
 
-    const postfixA = this(postfixes);
-    assertType(postfixA, 'operators');
     return {
       t: 'input',
       subType: 'choice',
-      v: [...prefixA.v, ...postfixA.v, terminal.v]
+      v: [terminal.v]
     };
   },
 
@@ -351,11 +349,8 @@ export const semantics = createSemantics<Data<StateName>>({
     };
   },
 
-  Call(prefixes, idNode, lb, argNode, argIter, rb, postfixes) {
+  Call(idNode, lb, argNode, argIter, rb) {
     const name = str(this(idNode)) as StateName;
-
-    const prefixA = this(prefixes);
-    assertType(prefixA, 'operators');
 
     const args: CallToken<StateName>['args'] = Object.create(null);
 
@@ -371,9 +366,6 @@ export const semantics = createSemantics<Data<StateName>>({
       args[data.name] = data.v;
     }
 
-    const postfixA = this(postfixes);
-    assertType(postfixA, 'operators');
-
     const call: CallToken<StateName> = {
       state: name,
       args
@@ -382,7 +374,7 @@ export const semantics = createSemantics<Data<StateName>>({
     return {
       t: 'input',
       subType: 'choice',
-      v: [...prefixA.v, ...postfixA.v, call]
+      v: [call]
     };
   },
 
