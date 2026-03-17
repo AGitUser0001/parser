@@ -1,6 +1,5 @@
 # Parser
-A parser library.
-
+A parser library based on a grammar defined using nested arrays.
 
 # Architecture
 ![Architecture Diagram](./architecture.svg)
