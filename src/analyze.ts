@@ -5,7 +5,7 @@ export class ParseFailedError extends Error {
   name = 'ParseFailedError';
   declare cause: Result;
   constructor(message: string, options: ErrorOptions & { cause: Result }) {
-    super(...arguments);
+    super(message, options);
   }
 }
 
