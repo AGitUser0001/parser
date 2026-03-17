@@ -11,7 +11,7 @@ export class ParseFailedError extends Error {
 
 export function validateResult(result: Result, graph?: Graph<StateName> | null) {
   if (!result.ok) {
-    const path = findRightmostPath(result);
+    const path = findIdealPath(result);
     let i = path.length - 1;
     while (i > 0) {
       if (path[i].type === 'state')
@@ -84,6 +84,10 @@ export function findRightmostPath(root: Result): Result[] {
   return path;
 }
 
+export function findIdealPath(root: Result, start: number = 0): Result[] { 
+  return findPathToPos(root, root.pos, start);
+}
+
 export function findPathToPos(
   root: Result,
   target: number,
@@ -154,7 +158,7 @@ export function findPathToPos(
 
 function findChildIndex(children: Result[], target: number): number {
   let lo = 0;
-  let hi = children.length; // exclusive
+  let hi = children.length;
 
   while (lo < hi) {
     const mid = (lo + hi) >> 1;
@@ -166,7 +170,20 @@ function findChildIndex(children: Result[], target: number): number {
     }
   }
 
-  return lo; // first index where target < child.pos
+  // lo is first candidate — now skip lookaheads (prefer left)
+  let idx = lo;
+
+  // Prefer left: walk backward first
+  while (idx > 0 && children[idx - 1].type === 'lookahead') {
+    idx--;
+  }
+
+  // If still on a lookahead, walk forward
+  while (idx < children.length && children[idx].type === 'lookahead') {
+    idx++;
+  }
+
+  return idx;
 }
 
 export function findExpectedSet<K extends StateName>(
@@ -369,17 +386,19 @@ function lenGtZero(root: Result): boolean {
 
 export function collectPrefixDeps<K extends StateName>(
   graph: Graph<K>,
-  data: Sequence<K> | Choice<K>
+  data: Sequence<K> | Choice<K>,
+  ignoreLookarounds: boolean = false
 ): Set<StateKey<K>> {
-  const { nullable, v } = prefix(graph, data, false);
+  const { nullable, v } = prefix(graph, data, false, ignoreLookarounds);
   return new Set(v.filter(e => typeof e === 'string'));
 }
 
 export function collectPrefixTerminals<K extends StateName>(
   graph: Graph<K>,
-  data: Sequence<K> | Choice<K>
+  data: Sequence<K> | Choice<K>,
+  ignoreLookarounds: boolean = true
 ): Set<RegExp> {
-  const { nullable, v } = prefix(graph, data, true);
+  const { nullable, v } = prefix(graph, data, true, ignoreLookarounds);
   return new Set(v.filter(e => e instanceof RegExp));
 }
 
@@ -389,12 +408,13 @@ export function prefix<K extends StateName>(
   graph: Graph<K>,
   data: Sequence<K> | Choice<K>,
   follow: boolean,
+  ignoreLookarounds: boolean,
   seen: string[] = []
 ): { nullable: boolean; v: TV<K>[]; } {
   if (data instanceof Choice)
-    return prefixChoice(graph, data, follow, seen);
+    return prefixChoice(graph, data, follow, ignoreLookarounds, seen);
   if (data instanceof Sequence)
-    return prefixSeq(graph, data, follow, seen);
+    return prefixSeq(graph, data, follow, ignoreLookarounds, seen);
   throw new TypeError(`Invalid data passed to 'prefix'`, { cause: data });
 }
 
@@ -402,9 +422,13 @@ function prefixSeq<K extends StateName>(
   graph: Graph<K>,
   data: Sequence<K>,
   follow: boolean,
+  ignoreLookarounds: boolean,
   seen: string[]
 ): { nullable: boolean; v: TV<K>[]; } {
   const { ops, body } = data.segments;
+  if (ignoreLookarounds && ops.has('&') || ops.has('!'))
+    return { nullable: true, v: [] };
+
   let nullable = false;
   for (const op of nullableOperators)
     if (ops.has(op))
@@ -423,7 +447,7 @@ function prefixSeq<K extends StateName>(
         output.push(term);
         if (follow) {
           if (!seen.includes(term)) {
-            const result = prefix(graph, graph.get(term)!, follow, [...seen, term]);
+            const result = prefix(graph, graph.get(term)!, follow, ignoreLookarounds, [...seen, term]);
             output.push(...result.v);
             if (!result.nullable)
               return { nullable, v: output };
@@ -432,7 +456,7 @@ function prefixSeq<K extends StateName>(
           return { nullable, v: output };
       }
     } else {
-      const result = prefix(graph, term, follow, seen);
+      const result = prefix(graph, term, follow, ignoreLookarounds, seen);
       output.push(...result.v);
       if (!result.nullable)
         return { nullable, v: output };
@@ -445,9 +469,12 @@ function prefixChoice<K extends StateName>(
   graph: Graph<K>,
   data: Choice<K>,
   follow: boolean,
+  ignoreLookarounds: boolean,
   seen: string[]
 ): { nullable: boolean; v: TV<K>[]; } {
   const { ops, body } = data.segments;
+  if (ignoreLookarounds && ops.has('&') || ops.has('!'))
+    return { nullable: true, v: [] };
 
   let nullable = false;
   for (const op of nullableOperators)
@@ -469,7 +496,7 @@ function prefixChoice<K extends StateName>(
       } else if (follow) {
         result = seen.includes(term) ?
           { nullable: true, v: [term] } :
-          prefix(graph, graph.get(term)!, follow, [...seen, term]);
+          prefix(graph, graph.get(term)!, follow, ignoreLookarounds, [...seen, term]);
       } else {
         const solid = isSolid(graph, graph.get(term)!, [term]);
         result = {
@@ -479,7 +506,7 @@ function prefixChoice<K extends StateName>(
       }
 
     } else {
-      result = prefix(graph, term, follow, seen);
+      result = prefix(graph, term, follow, ignoreLookarounds, seen);
     }
 
     nullable ||= result.nullable;
