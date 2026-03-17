@@ -90,16 +90,19 @@ export function findExpectedSet<K extends StateName>(
 ): Set<RegExp> {
   const expected = new Set<RegExp>();
 
-  function collect(node: Sequence<K> | Choice<K>) {
-    for (const re of collectPrefixTerminals(graph, node))
+  function collect(node: Sequence<K> | Choice<K> | RegExp) {
+    if (node instanceof RegExp) {
+      expected.add(node);
+    } else for (const re of collectPrefixTerminals(graph, node)) {
       expected.add(re);
+    }
   }
 
   const path = findDeepestRightmostPath(result);
   const startOfSplitPoint = findSplitPoint(path, isAtStartOf);
   const endOfSplitPoint = findSplitPoint(path, isAtEndOf);
 
-  let graphCursor: Sequence<K> | Choice<K> | null = null;
+  let graphCursor: Sequence<K> | Choice<K> | RegExp | null = null;
 
   for (let i = 0; i < path.length; i++) {
     const r = path[i];
@@ -122,16 +125,15 @@ export function findExpectedSet<K extends StateName>(
         const targetChildResult = next;
         for (let ci = 0; ci < r.value.length; ci++) {
           if (r.value[ci] === targetChildResult) {
-            if (nextIdx >= startOfSplitPoint) {
-              const continuation = new Sequence<K>();
-              continuation.push(...graphCursor.segments.ops, ...body.slice(ci) as any);
-              collect(continuation);
-            }
+            if (targetChildResult.ok)
+              if (nextIdx >= endOfSplitPoint) {
+                const continuation = new Sequence<K>();
+                continuation.push(...graphCursor.segments.ops, ...body.slice(ci + 1) as any);
+                collect(continuation);
+              }
             // advance graph cursor to the target child's graph node
             const graphChild = body[ci];
-            if (graphChild instanceof RegExp) {
-              graphCursor = null;
-            } else if (typeof graphChild === 'string') {
+            if (typeof graphChild === 'string') {
               graphCursor = graph.get(graphChild as K)!;
             } else {
               graphCursor = graphChild;
@@ -146,15 +148,12 @@ export function findExpectedSet<K extends StateName>(
         if (!(graphCursor instanceof Choice)) break;
         const s: Segments<K> = graphCursor.segments;
         const { body } = s;
-        const isTargetStart = i >= startOfSplitPoint;
 
-        if (isTargetStart) {
+        if (i >= startOfSplitPoint) {
           for (let ci = 0; ci < body.length; ci++) {
             if (ci === r.alt) continue;
             const branch = body[ci];
-            if (branch instanceof RegExp) {
-              expected.add(branch);
-            } else if (typeof branch === 'string') {
+            if (typeof branch === 'string') {
               collect(graph.get(branch as K)!);
             } else {
               collect(branch);
@@ -165,10 +164,7 @@ export function findExpectedSet<K extends StateName>(
         // advance graph cursor into taken branch
         if (r.alt !== null) {
           const taken = body[r.alt];
-          if (taken instanceof RegExp) {
-            if (isTargetStart) expected.add(taken);
-            graphCursor = null;
-          } else if (typeof taken === 'string') {
+          if (typeof taken === 'string') {
             graphCursor = graph.get(taken as K)!;
           } else {
             graphCursor = taken;
@@ -178,15 +174,31 @@ export function findExpectedSet<K extends StateName>(
       }
 
       case 'iteration': {
+        if (graphCursor === null) break;
         // graphCursor stays the same — iteration repeats the same graph node
         if (r.ok) {
           if (i >= endOfSplitPoint) {
             // iteration could repeat — collect FIRST of body
-            collect(graphCursor!);
+            collect(graphCursor);
           }
         }
         break;
       }
+
+      case 'terminal':
+        if (!(graphCursor instanceof RegExp)) break;
+        if (!r.ok) {
+          collect(graphCursor);
+        }
+        break;
+
+      case 'lookahead':
+      case 'none':
+      case 'rewind':
+        break;
+
+      default:
+        const _exhaustive: never = r;
     }
   }
 
@@ -194,7 +206,7 @@ export function findExpectedSet<K extends StateName>(
 }
 
 function findSplitPoint(path: Result[], fn: (node: Result, parent: Result) => boolean) {
-  for (let i = path.length - 1; i > 0; i--) { 
+  for (let i = path.length - 1; i > 0; i--) {
     if (!fn(path[i], path[i - 1]))
       return i; // If nodeIndex >= i, startOf/endOf(node) === startOf/endOf(path[path.length - 1])
   }
