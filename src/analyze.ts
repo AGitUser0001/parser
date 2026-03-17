@@ -179,6 +179,8 @@ export function findExpectedSet<K extends StateName>(
         if (r.ok) {
           if (i >= endOfSplitPoint) {
             // iteration could repeat — collect FIRST of body
+            if (r.kind === '?' && r.value.length > 0) break;
+            if (r.kind === '@') break;
             collect(graphCursor);
           }
         }
