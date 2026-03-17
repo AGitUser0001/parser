@@ -20,7 +20,7 @@ export function validateResult(result: Result, graph?: Graph<StateName> | null) 
     }
     const txt = generateTextFrom(path.slice(i));
     if (graph != undefined) {
-      const expected = findExpectedSet(graph, result);
+      const expected = findExpectedSet(graph, path);
       const expectedStr = [...expected].map(r => r.toString()).join(', ');
       const expectedTxt = expected.size === 1 ?
         `\nExpected ${expectedStr}` :
@@ -86,7 +86,7 @@ export function findDeepestRightmostPath(root: Result): Result[] {
 
 export function findExpectedSet<K extends StateName>(
   graph: Graph<K>,
-  result: Result
+  path: Result[]
 ): Set<RegExp> {
   const expected = new Set<RegExp>();
 
@@ -98,7 +98,6 @@ export function findExpectedSet<K extends StateName>(
     }
   }
 
-  const path = findDeepestRightmostPath(result);
   const startOfSplitPoint = findSplitPoint(path, isAtStartOf);
   const endOfSplitPoint = findSplitPoint(path, isAtEndOf);
 
