@@ -88,32 +88,7 @@ export function findExpectedSet<K extends StateName>(
   graph: Graph<K>,
   result: Result
 ): Set<RegExp> {
-  const targetPos = result.pos;
   const expected = new Set<RegExp>();
-
-  const lenCache = new WeakMap<Result, number>();
-  function lenOf(r: Result): number {
-    if (lenCache.has(r)) return lenCache.get(r)!;
-    let len: number;
-    switch (r.type) {
-      case 'none': len = 0; break;
-      case 'terminal': len = r.value == null ? 0 : r.value.length; break;
-      case 'state': len = lenOf(r.value); break;
-      case 'choice': len = lenOf(r.value); break;
-      case 'rewind': len = 0; break;
-      case 'lookahead': len = 0; break;
-      case 'sequence': len = r.value.reduce((acc, c) => acc + lenOf(c), 0); break;
-      case 'iteration': len = r.value.reduce((acc, c) => acc + lenOf(c), 0); break;
-      case 'root': len = lenOf(r.value) + (r.trailing_ws ?? '').length; break;
-    }
-    len += r.ws ? r.ws.length : 0;
-    lenCache.set(r, len);
-    return len;
-  }
-
-  function startOf(r: Result): number {
-    return r.pos - lenOf(r) + (r.ws ? r.ws.length : 0);
-  }
 
   function collect(node: Sequence<K> | Choice<K>) {
     for (const re of collectPrefixTerminals(graph, node))
@@ -121,12 +96,15 @@ export function findExpectedSet<K extends StateName>(
   }
 
   const path = findDeepestRightmostPath(result);
+  const startOfSplitPoint = findSplitPoint(path, isAtStartOf);
+  const endOfSplitPoint = findSplitPoint(path, isAtEndOf);
 
   let graphCursor: Sequence<K> | Choice<K> | null = null;
 
   for (let i = 0; i < path.length; i++) {
     const r = path[i];
-    const next = path[i + 1];
+    const nextIdx = i + 1;
+    const next = path[nextIdx];
 
     switch (r.type) {
       case 'root':
@@ -144,7 +122,7 @@ export function findExpectedSet<K extends StateName>(
         const targetChildResult = next;
         for (let ci = 0; ci < r.value.length; ci++) {
           if (r.value[ci] === targetChildResult) {
-            if (startOf(r.value[ci]) === targetPos) {
+            if (nextIdx >= startOfSplitPoint) {
               const continuation = new Sequence<K>();
               continuation.push(...graphCursor.segments.ops, ...body.slice(ci) as any);
               collect(continuation);
@@ -168,8 +146,9 @@ export function findExpectedSet<K extends StateName>(
         if (!(graphCursor instanceof Choice)) break;
         const s: Segments<K> = graphCursor.segments;
         const { body } = s;
+        const isTargetStart = i >= startOfSplitPoint;
 
-        if (startOf(r) === targetPos && r.alt !== null) {
+        if (isTargetStart) {
           for (let ci = 0; ci < body.length; ci++) {
             if (ci === r.alt) continue;
             const branch = body[ci];
@@ -187,7 +166,7 @@ export function findExpectedSet<K extends StateName>(
         if (r.alt !== null) {
           const taken = body[r.alt];
           if (taken instanceof RegExp) {
-            if (startOf(r) === targetPos) expected.add(taken);
+            if (isTargetStart) expected.add(taken);
             graphCursor = null;
           } else if (typeof taken === 'string') {
             graphCursor = graph.get(taken as K)!;
@@ -201,7 +180,7 @@ export function findExpectedSet<K extends StateName>(
       case 'iteration': {
         // graphCursor stays the same — iteration repeats the same graph node
         if (r.ok) {
-          if (r.pos === targetPos) {
+          if (i >= endOfSplitPoint) {
             // iteration could repeat — collect FIRST of body
             collect(graphCursor!);
           }
@@ -212,6 +191,81 @@ export function findExpectedSet<K extends StateName>(
   }
 
   return expected;
+}
+
+function findSplitPoint(path: Result[], fn: (node: Result, parent: Result) => boolean) {
+  for (let i = path.length - 1; i > 0; i--) { 
+    if (!fn(path[i], path[i - 1]))
+      return i; // If nodeIndex >= i, startOf/endOf(node) === startOf/endOf(path[path.length - 1])
+  }
+  return 0;
+}
+
+function isAtStartOf(node: Result, parent: Result): boolean {
+  // case 1: node has leading ws
+  if (node.ws && node.ws.length > 0) return false;
+
+  // case 2: parent is sequence → check siblings before
+  if (parent.type === 'sequence') {
+    for (let i = 0; i < parent.value.length; i++) {
+      if (parent.value[i] === node) break;
+      if (lenGtZero(parent.value[i])) return false;
+    }
+  }
+
+  return true;
+}
+
+function isAtEndOf(node: Result, parent: Result): boolean {
+  // case 1: node has trailing ws
+  if (node.type === 'root' && node.trailing_ws && node.trailing_ws.length > 0) return false;
+
+  // case 2: parent is sequence → check siblings after
+  if (parent.type === 'sequence') {
+    for (let i = parent.value.length - 1; i >= 0; i--) {
+      if (parent.value[i] === node) break;
+      if (lenGtZero(parent.value[i])) return false;
+    }
+  }
+
+  return true;
+}
+
+function lenGtZero(root: Result): boolean {
+  const stack: Result[] = [root];
+  let i = 0;
+
+  while (i >= 0) {
+    const r = stack[i--];
+
+    if (r.ws && r.ws.length > 0) return true;
+
+    switch (r.type) {
+      case 'terminal':
+        if (r.value != null && r.value.length > 0) return true;
+        break;
+
+      case 'state':
+      case 'choice':
+      case 'root':
+        stack[++i] = r.value;
+        break;
+
+      case 'sequence':
+      case 'iteration':
+        for (let j = 0; j < r.value.length; j++) {
+          stack[++i] = r.value[j];
+        }
+        break;
+
+      case 'none':
+      case 'rewind':
+      case 'lookahead':
+        break;
+    }
+  }
+
+  return false;
 }
 
 export function collectPrefixDeps<K extends StateName>(
@@ -268,11 +322,13 @@ function prefixSeq<K extends StateName>(
     } else if (typeof term === 'string') {
       if (!isGeneric(term)) {
         output.push(term);
-        if (follow && !seen.includes(term)) {
-          const result = prefix(graph, graph.get(term)!, follow, [...seen, term]);
-          output.push(...result.v);
-          if (!result.nullable)
-            return { nullable, v: output };
+        if (follow) {
+          if (!seen.includes(term)) {
+            const result = prefix(graph, graph.get(term)!, follow, [...seen, term]);
+            output.push(...result.v);
+            if (!result.nullable)
+              return { nullable, v: output };
+          }
         } else if (isSolid(graph, graph.get(term)!, [term]))
           return { nullable, v: output };
       }
@@ -311,8 +367,10 @@ function prefixChoice<K extends StateName>(
     } else if (typeof term === 'string') {
       if (isGeneric(term)) {
         result = { nullable: true, v: [] };
-      } else if (follow && !seen.includes(term)) {
-        result = prefix(graph, graph.get(term)!, follow, [...seen, term]);
+      } else if (follow) {
+        result = seen.includes(term) ?
+          { nullable: true, v: [term] } :
+          prefix(graph, graph.get(term)!, follow, [...seen, term]);
       } else {
         const solid = isSolid(graph, graph.get(term)!, [term]);
         result = {
