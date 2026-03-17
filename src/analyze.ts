@@ -11,7 +11,7 @@ export class ParseFailedError extends Error {
 
 export function validateResult(result: Result, graph?: Graph<StateName> | null) {
   if (!result.ok) {
-    const path = findDeepestRightmostPath(result);
+    const path = findRightmostPath(result);
     let i = path.length - 1;
     while (i > 0) {
       if (path[i].type === 'state')
@@ -61,7 +61,7 @@ function generateTextFrom(path: Result[]) {
   }).join(' > ');
 }
 
-export function findDeepestRightmostPath(root: Result): Result[] {
+export function findRightmostPath(root: Result): Result[] {
   let current = root;
   let path: Result[] = [];
 
@@ -84,6 +84,91 @@ export function findDeepestRightmostPath(root: Result): Result[] {
   return path;
 }
 
+export function findPathToPos(
+  root: Result,
+  target: number,
+  start: number = 0
+): Result[] {
+  const path: Result[] = [];
+  let cursor = start;
+
+  let current: Result | null = root;
+
+  while (current) {
+    path.push(current);
+
+    // Node spans [cursor, current.pos)
+    const nodeStart = cursor;
+    const nodeEnd = current.pos;
+
+    const wsLen = current.ws?.length ?? 0;
+
+    // 1. Leading WS
+    if (target < nodeStart + wsLen) {
+      return path;
+    }
+
+    cursor = nodeStart + wsLen;
+
+    // 2. Trailing WS (only root has it)
+    if (current.type === 'root') {
+      const trailingLen = current.trailing_ws?.length ?? 0;
+      if (target > nodeEnd - trailingLen) {
+        return path;
+      }
+    }
+
+    switch (current.type) { 
+      case 'sequence':
+      case 'iteration': {
+        const children: Result[] = current.value;
+        const idx = findChildIndex(children, target);
+
+        if (idx >= children.length) {
+          return path;
+        }
+
+        // we advance cursor to the start of this child
+        if (idx > 0) {
+          cursor = children[idx - 1].pos;
+        }
+
+        current = children[idx];
+        break;
+      }
+      case 'terminal':
+      case 'none':
+      case 'lookahead':
+        return path;
+      case 'choice':
+      case 'rewind':
+      case 'root':
+      case 'state':
+        current = current.value;
+        break;
+    }
+  }
+
+  return path;
+}
+
+function findChildIndex(children: Result[], target: number): number {
+  let lo = 0;
+  let hi = children.length; // exclusive
+
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+
+    if (target <= children[mid].pos) {
+      hi = mid;
+    } else {
+      lo = mid + 1;
+    }
+  }
+
+  return lo; // first index where target < child.pos
+}
+
 export function findExpectedSet<K extends StateName>(
   graph: Graph<K>,
   path: Result[]
@@ -98,7 +183,8 @@ export function findExpectedSet<K extends StateName>(
     }
   }
 
-  const startOfSplitPoint = findSplitPoint(path, isAtStartOf);
+  const deepest = path[path.length - 1];
+  const startOfSplitPoint = lenGtZero(deepest) ? path.length : findSplitPoint(path, isAtStartOf);
   const endOfSplitPoint = findSplitPoint(path, isAtEndOf);
 
   let graphCursor: Sequence<K> | Choice<K> | RegExp | null = null;
