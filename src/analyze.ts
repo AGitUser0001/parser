@@ -551,8 +551,9 @@ export function isSolid<K extends StateName>(
 }
 
 export function nullableRegex(re: RegExp) { 
-  if (re.sticky) { 
-    re.lastIndex = 0;
-  }
-  return re.test('');
+  const lI = re.lastIndex;
+  re.lastIndex = 0;
+  const isNullable = re.test('');
+  re.lastIndex = lI;
+  return isNullable;
 }
