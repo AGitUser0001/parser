@@ -73,7 +73,9 @@ export type MutableArrayTokenExpr<K extends StateName> = MutableTokenSequence<K>
 
 export type State<K extends StateName> = Exclude<TokenSequence<K>, CallToken<K>> | StateObject<K>;
 export type StateObject<K extends StateName> = Record<StateName, TokenSequence<K>>;
-export type States<K extends StateName> = Record<K, State<K>>;
+export type States<K extends StateName> = {
+  [P in K]: State<K>
+};
 
 export type MutableState<K extends StateName> = Exclude<MutableTokenSequence<K>, CallToken<K>> | MutableStateObject<K>;
 export type MutableStateObject<K extends StateName> = Record<StateName, MutableTokenSequence<K>>;
@@ -185,17 +187,15 @@ export class Graph<K extends StateName> extends MapView<StateKey<K>, Sequence<K>
   }
 };
 
-export type StateKeys<T extends States<StateName>> = Extract<`${Exclude<keyof T, symbol>}`, StateName>;
+export type StateKeys<T extends States<StateName>> = keyof T & StateName;
 export function typed_states<
-  KInput extends StateName,
-  T extends States<KInput> = States<KInput>
->(input: T extends States<StateKeys<T>> ? T : States<StateKeys<T>>): States<StateKeys<T>> {
+  const T extends States<StateKeys<T>>
+>(input: T): T {
   return input;
 }
 export function input_to_graph<
-  KInput extends StateName,
-  T extends States<KInput> = States<KInput>
->(input: T extends States<StateKeys<T>> ? T : States<StateKeys<T>>): Graph<StateKeys<T>>  {
+  const T extends States<StateKeys<T>>
+>(input: T): Graph<StateKeys<T>> {
   type K = StateKeys<T>;
   const states: States<K> = input;
   const graphMap: GraphMap<K> = new Map();

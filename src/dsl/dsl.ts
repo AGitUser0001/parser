@@ -1,5 +1,5 @@
 import type { CallToken, MutableArrayTokenExpr, MutableArrayTokenSequence, MutableStateObject, StandaloneOperator, StateName, Token, MutableState, MutableStates } from "../graph.js";
-import { input_to_graph, typed_states, toParseTree, build, Semantics } from "../index.js";
+import { input_to_graph, typed_states, toParseTree, build, Semantics, Graph } from "../index.js";
 
 export const grammar = typed_states({
   Grammar: ['*', 'State', ['?', /;/]],
@@ -49,7 +49,7 @@ export const grammar = typed_states({
     double: [/"/, /[^"]+/, /"/, /[a-z]*/]
   }
 });
-
+grammar.postfix
 export const graph = input_to_graph(grammar);
 
 type Data<K extends StateName> =
@@ -406,14 +406,14 @@ export const semantics = createSemantics<Data<StateName>>({
 export const parse = build(graph);
 
 export const WS_REGEX = /(?:\s+|\/\/.*$|\/\*[\s\S]*?\*\/)+/my;
-export function load(input: string) {
+export function load<K extends StateName>(input: string): MutableStates<K> {
   const parsed = parse(input, 'Grammar', WS_REGEX);
   const parseTree = toParseTree(parsed, graph);
   const result = semantics.evaluate(parseTree);
   assertType(result, 'states');
-  return result.v;
+  return result.v as MutableStates<K>;
 }
 
-export function compile(input: string) {
-  return input_to_graph(load(input));
+export function compile<K extends StateName>(input: string): Graph<K> {
+  return input_to_graph(load<K>(input));
 }
