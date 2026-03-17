@@ -426,7 +426,7 @@ function prefixSeq<K extends StateName>(
   seen: string[]
 ): { nullable: boolean; v: TV<K>[]; } {
   const { ops, body } = data.segments;
-  if (ignoreLookarounds && ops.has('&') || ops.has('!'))
+  if (ignoreLookarounds && (ops.has('&') || ops.has('!')))
     return { nullable: true, v: [] };
 
   let nullable = false;
@@ -473,7 +473,7 @@ function prefixChoice<K extends StateName>(
   seen: string[]
 ): { nullable: boolean; v: TV<K>[]; } {
   const { ops, body } = data.segments;
-  if (ignoreLookarounds && ops.has('&') || ops.has('!'))
+  if (ignoreLookarounds && (ops.has('&') || ops.has('!')))
     return { nullable: true, v: [] };
 
   let nullable = false;
