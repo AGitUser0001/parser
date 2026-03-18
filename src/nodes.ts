@@ -100,6 +100,8 @@ abstract class ParseNode {
     if (this._source) return this._source;
     let node: ParseNode = this;
     while (node.parent) node = node.parent;
+    if (node === this)
+      throw new Error('Circular ParseNode tree!', { cause: { node } });
     return this._source = node.source.slice(
       this.start - node.start,
       this.end - node.start
