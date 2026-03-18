@@ -72,11 +72,11 @@ function transformCST(result: Result, out: ParseTreeNode[], text: string[]): num
       break;
 
     case 'root':
+      transformCST(result.value, out, text);
       if (result.trailing_ws) {
         text.push(result.trailing_ws);
         len += result.trailing_ws.length;
       }
-      transformCST(result.value, out, text);
       break;
 
     default:
