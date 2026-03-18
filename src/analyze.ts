@@ -12,13 +12,7 @@ export class ParseFailedError extends Error {
 export function validateResult(result: Result, graph?: Graph<StateName> | null) {
   if (!result.ok) {
     const path = findRightmostPath(result);
-    let i = path.length - 1;
-    while (i > 0) {
-      if (path[i].type === 'state')
-        break;
-      i--;
-    }
-    const txt = generateTextFrom(path.slice(i));
+    const txt = generateTextFrom(path);
     if (graph != undefined) {
       const idealPath = findIdealPath(result);
       const expected = findExpectedSet(graph, idealPath);
