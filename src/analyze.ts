@@ -387,19 +387,17 @@ function lenGtZero(root: Result): boolean {
 
 export function collectPrefixDeps<K extends StateName>(
   graph: Graph<K>,
-  data: Sequence<K> | Choice<K>,
-  ignoreLookarounds: boolean = false
+  data: Sequence<K> | Choice<K>
 ): Set<StateKey<K>> {
-  const { nullable, v } = prefix(graph, data, false, ignoreLookarounds);
+  const { nullable, v } = prefix(graph, data, false);
   return new Set(v.filter(e => typeof e === 'string'));
 }
 
 export function collectPrefixTerminals<K extends StateName>(
   graph: Graph<K>,
-  data: Sequence<K> | Choice<K>,
-  ignoreLookarounds: boolean = true
+  data: Sequence<K> | Choice<K>
 ): Set<RegExp> {
-  const { nullable, v } = prefix(graph, data, true, ignoreLookarounds);
+  const { nullable, v } = prefix(graph, data, true);
   return new Set(v.filter(e => e instanceof RegExp));
 }
 
@@ -408,26 +406,24 @@ type TV<K extends StateName> = StateKey<K> | RegExp;
 export function prefix<K extends StateName>(
   graph: Graph<K>,
   data: Sequence<K> | Choice<K>,
-  follow: boolean,
-  ignoreLookarounds: boolean,
+  isFIRST: boolean,
   seen: string[] = []
 ): { nullable: boolean; v: TV<K>[]; } {
   if (data instanceof Choice)
-    return prefixChoice(graph, data, follow, ignoreLookarounds, seen);
+    return prefixChoice(graph, data, isFIRST, seen);
   if (data instanceof Sequence)
-    return prefixSeq(graph, data, follow, ignoreLookarounds, seen);
+    return prefixSeq(graph, data, isFIRST, seen);
   throw new TypeError(`Invalid data passed to 'prefix'`, { cause: data });
 }
 
 function prefixSeq<K extends StateName>(
   graph: Graph<K>,
   data: Sequence<K>,
-  follow: boolean,
-  ignoreLookarounds: boolean,
+  isFIRST: boolean,
   seen: string[]
 ): { nullable: boolean; v: TV<K>[]; } {
   const { ops, body } = data.segments;
-  if (ignoreLookarounds && (ops.has('&') || ops.has('!')))
+  if (isFIRST && (ops.has('&') || ops.has('!')))
     return { nullable: true, v: [] };
 
   let nullable = false;
@@ -445,18 +441,21 @@ function prefixSeq<K extends StateName>(
     } else if (typeof term === 'string') {
       if (!isGeneric(term)) {
         output.push(term);
-        if (follow) {
+        if (isFIRST) {
           if (!seen.includes(term)) {
-            const result = prefix(graph, graph.get(term)!, follow, ignoreLookarounds, [...seen, term]);
+            const result = prefix(graph, graph.get(term)!, isFIRST, [...seen, term]);
             output.push(...result.v);
             if (!result.nullable)
               return { nullable, v: output };
+          } else {
+            return { nullable, v: output }; // In FIRST, Left Recursion is Solid
           }
         } else if (isSolid(graph, graph.get(term)!, [term]))
+          // In SCC analysis, Left Recursion is Solid
           return { nullable, v: output };
       }
     } else {
-      const result = prefix(graph, term, follow, ignoreLookarounds, seen);
+      const result = prefix(graph, term, isFIRST, seen);
       output.push(...result.v);
       if (!result.nullable)
         return { nullable, v: output };
@@ -468,12 +467,11 @@ function prefixSeq<K extends StateName>(
 function prefixChoice<K extends StateName>(
   graph: Graph<K>,
   data: Choice<K>,
-  follow: boolean,
-  ignoreLookarounds: boolean,
+  isFIRST: boolean,
   seen: string[]
 ): { nullable: boolean; v: TV<K>[]; } {
   const { ops, body } = data.segments;
-  if (ignoreLookarounds && (ops.has('&') || ops.has('!')))
+  if (isFIRST && (ops.has('&') || ops.has('!')))
     return { nullable: true, v: [] };
 
   let nullable = false;
@@ -492,11 +490,12 @@ function prefixChoice<K extends StateName>(
     } else if (typeof term === 'string') {
       if (isGeneric(term)) {
         result = { nullable: true, v: [] };
-      } else if (follow) {
+      } else if (isFIRST) {
         result = seen.includes(term) ?
-          { nullable: true, v: [term] } :
-          prefix(graph, graph.get(term)!, follow, ignoreLookarounds, [...seen, term]);
+          { nullable: false, v: [term] } /* In FIRST, Left Recursion is Solid */ :
+          prefix(graph, graph.get(term)!, isFIRST, [...seen, term]);
       } else {
+        // In SCC analysis, Left Recursion is Solid
         const solid = isSolid(graph, graph.get(term)!, [term]);
         result = {
           nullable: !solid,
@@ -505,7 +504,7 @@ function prefixChoice<K extends StateName>(
       }
 
     } else {
-      result = prefix(graph, term, follow, ignoreLookarounds, seen);
+      result = prefix(graph, term, isFIRST, seen);
     }
 
     nullable ||= result.nullable;
@@ -542,7 +541,7 @@ export function isSolid<K extends StateName>(
         if (isSolid(graph, graph.get(term)!, [...seen, term])) {
           if (!isChoice) return true;
         } else v = false;
-      else v = false;
+      // No else case - Left Recursion is Solid
     } else if (isSolid(graph, term, seen)) {
       if (!isChoice) return true;
     } else v = false;
