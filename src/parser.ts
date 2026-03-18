@@ -602,7 +602,7 @@ function withOperators<K extends StateName>(
 }
 
 const WS_REGEX = /\s+/y;
-const LEXICAL_REGEX = /^[a-z_]/;
+const LEXICAL_REGEX = /^[\p{Ll}_]/u;
 export type ParserFn<K extends StateName> = (input: string, start: StateKey<K>, ws?: RegExp) => Result & { type: 'root'; };
 type ParserResources<K extends StateName> = {
   states: Map<StateKey<K>, StateRV<K>>,
