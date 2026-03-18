@@ -49,7 +49,7 @@ export const grammar = typed_states({
     double: [/"/, /[^"]+/, /"/, /[a-z]*/]
   }
 });
-grammar.postfix
+
 export const graph = input_to_graph(grammar);
 
 type Data<K extends StateName> =
