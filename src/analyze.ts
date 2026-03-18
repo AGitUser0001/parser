@@ -541,7 +541,7 @@ export function isSolid<K extends StateName>(
         if (isSolid(graph, graph.get(term)!, [...seen, term])) {
           if (!isChoice) return true;
         } else v = false;
-      // No else case - Left Recursion is Solid
+      else if (!isChoice) return true; // Left Recursion is Solid
     } else if (isSolid(graph, term, seen)) {
       if (!isChoice) return true;
     } else v = false;
