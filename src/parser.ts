@@ -84,7 +84,7 @@ function buildState<K extends StateName>(
 ): StateRV<K> {
   const sid = ctx.sccOf.get(state);
   if (sid === undefined) {
-    const x = evalStateBody(ctx, state, ctx.lexicalStates.has(state));
+    const x = buildStateBody(ctx, state, ctx.lexicalStates.has(state));
     return ctx.logic((rc, pos) => {
       const existing = rc.getMemo(state, pos);
       if (existing) {
@@ -98,7 +98,7 @@ function buildState<K extends StateName>(
     }, { x, state });
   }
 
-  const s = solveSCC(ctx, sid);
+  const s = buildSCC(ctx, sid);
   return ctx.logic((rc, pos) => {
     const existing = rc.getMemo(state, pos);
     if (existing) {
@@ -117,7 +117,7 @@ function buildState<K extends StateName>(
   }, { s, state });
 }
 
-function solveSCC<K extends StateName>(
+function buildSCC<K extends StateName>(
   ctx: ParserCtx<K>,
   sccId: SccId
 ): Fn<FnT<K, void>, FnT<K>> {
@@ -131,7 +131,7 @@ function solveSCC<K extends StateName>(
   let ev: RV<K>[] = [];
   for (let i = 0; i < group.length; i++) {
     const st = group[i];
-    const x = evalStateBody(ctx, st, ctx.lexicalStates.has(st));
+    const x = buildStateBody(ctx, st, ctx.lexicalStates.has(st));
     ev.push(x);
   }
 
@@ -190,7 +190,7 @@ function solveSCC<K extends StateName>(
   return result;
 }
 
-function evalStateBody<K extends StateName>(
+function buildStateBody<K extends StateName>(
   ctx: ParserCtx<K>,
   state: StateKey<K>,
   lexical: boolean
