@@ -11,7 +11,7 @@ export class ParseFailedError extends Error {
 
 export function validateResult(result: Result, graph?: Graph<StateName> | null) {
   if (!result.ok) {
-    const path = findIdealPath(result);
+    const path = findRightmostPath(result);
     let i = path.length - 1;
     while (i > 0) {
       if (path[i].type === 'state')
@@ -20,7 +20,8 @@ export function validateResult(result: Result, graph?: Graph<StateName> | null) 
     }
     const txt = generateTextFrom(path.slice(i));
     if (graph != undefined) {
-      const expected = findExpectedSet(graph, path);
+      const idealPath = findIdealPath(result);
+      const expected = findExpectedSet(graph, idealPath);
       const expectedStr = [...expected].map(r => r.toString()).join(', ');
       const expectedTxt = expected.size === 1 ?
         `\nExpected ${expectedStr}` :

@@ -11,15 +11,15 @@ const RUN_NATIVE = true;
 const LOG_GRAPH = false;
 const LOG_NUMBERS = true;
 const RUN_N = 10;
-const RUN_BENCHMARK = true;
+const RUN_BENCHMARK = false;
 const LOG_PARSE_TREE = false;
 const LOG_DATA = false;
 const RUN_EMIT = true;
 const WRITE_EMIT = true;
 const EMIT_PATH = './json_parser.js';
 
-// const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
-const input = readFile ? await readFile('./json_sample1k.json', 'utf-8') : await (await fetch('./json_sample1k.json')).text();
+const input = await (await fetch('https://microsoftedge.github.io/Demos/json-dummy-data/5MB.json')).text();
+// const input = readFile ? await readFile('./json_sample1k.json', 'utf-8') : await (await fetch('./json_sample1k.json')).text();
 
 // -----------------------------------------------------------------------
 if (LOG_NUMBERS)
