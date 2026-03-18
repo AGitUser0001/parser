@@ -7,8 +7,8 @@ export const grammar = typed_states({
   StateObject: ['prefixes', /\{/, [['*', 'State_reg', ['?', /;/]]], /\}/, '#postfixes'],
 
   State: {
-    obj: ['identifier', /=/, 'StateObject'],
-    reg: ['identifier', /=/, 'Choice_outer']
+    reg: ['identifier', /=/, 'Choice_outer'],
+    obj: ['identifier', /=/, 'StateObject']
   },
 
   Choice: {

@@ -79,8 +79,11 @@ export function findRightmostPath(root: Result): Result[] {
   return path;
 }
 
-export function findIdealPath(root: Result, start: number = 0): Result[] { 
-  return findPathToPos(root, root.pos, start);
+export function findIdealPath(root: Result, start: number = 0): Result[] {
+  let endPos = root.pos;
+  if (root.type === 'root' && root.trailing_ws)
+    endPos -= root.trailing_ws.length;
+  return findPathToPos(root, endPos, start);
 }
 
 export function findPathToPos(
