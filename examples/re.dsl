@@ -86,7 +86,7 @@ escapeitem = {
 }
 
 unicode_escape_value = {
-  4 = /[\da-f]{4}/i
+  four = /[\da-f]{4}/i
   variable = '{' hexNumber '}'
 }
 
