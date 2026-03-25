@@ -6,7 +6,7 @@ Grammar = (State ';'?)*
 StateObject = prefixes '{' (State_reg ';'?)* '}' #postfixes
 
 State = {
-  reg = identifier '=' Choice_outer
+  reg = identifier '=' !'{' Choice_outer
   obj = identifier '=' StateObject
 }
 
