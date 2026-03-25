@@ -331,7 +331,7 @@ export function input_to_graph<
             throw new Error(`Special subLabel _before must be structured [...]`, {
               cause: { states, stateLabel, subLabel, graphMap }
             });
-          sequence.unshift(...convertSequence(data));
+          sequence.unshift(convertExpr([data]));
           continue;
         }
         if (subLabel === '_after') {
@@ -340,7 +340,7 @@ export function input_to_graph<
             throw new Error(`Special subLabel _after must be structured [...]`, {
               cause: { states, stateLabel, subLabel, graphMap }
             });
-          sequence.push(...convertSequence(data));
+          sequence.push(convertExpr([data]));
           continue;
         }
         const label: StateKey<K> = `${stateLabel}_${subLabel}` as const;
