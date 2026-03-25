@@ -23,24 +23,25 @@ Term = {
 atom =
     Group
   | charclass
-  | escaped
+  | escape
   | dot
   | literal
 
-Group =
-    '(' Disjunction ')'
-  | '(?:' Disjunction ')'        // non-capturing
+Group = {
+  simple = '(' Disjunction ')'
+  non_capturing = '(?:' Disjunction ')'
+  named_capture = '(?<' ident '>' Disjunction ')'
+}
 
 charclass =
     '[' '^'? classitem* ']'
 
 classitem =
     range
-  | escaped
+  | escape
   | classchar
 
-range =
-    classchar '-' classchar
+range = (classchar | escape) '-' (classchar | escape)
 
 // -----------------
 // ASSERTIONS
@@ -64,7 +65,8 @@ quantifier = (quantifier_char | quantifier_repeat_n) '?'?
 quantifier_char = /[*+?]/
 quantifier_repeat_n = '{' number (',' number?)? '}'
 
-number = /[0-9]+/
+number = /\d+/
+hexNumber = /[\da-f]+/i
 
 // -----------------
 // TERMINALS
@@ -72,9 +74,25 @@ number = /[0-9]+/
 
 dot = '.'
 
-escaped = /\\./
+escape = '\' escapeitem
 
-literal = /[^\\.^$|?*+()[\]{}]/
+escapeitem = {
+  numeric = number
+  control = 'c' /[a-z]/i
+  named_backref = 'k' '<' ident '>'
+  unicode = 'u' unicode_escape_value
+  hex = 'x' /[\da-f]{2}/i
+  char = /[^\dukxc]/
+}
+
+unicode_escape_value = {
+  4 = /[\da-f]{4}/i
+  variable = '{' hexNumber '}'
+}
+
+literal = !quantifier_repeat_n /[^\\.^$|?*+()[]/
 
 // inside [...]
-classchar = /[^\\\]\-]/
+classchar = /[^\\\]]/
+
+ident = /[$_\p{ID_Start}][$\u200c\u200d\p{ID_Continue}]*/u
