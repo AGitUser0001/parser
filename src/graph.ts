@@ -72,13 +72,17 @@ export type MutableTokenExpr<K extends StateName> = Token<K> | MutableArrayToken
 export type MutableArrayTokenExpr<K extends StateName> = MutableTokenSequence<K>[];
 
 export type State<K extends StateName> = Exclude<TokenSequence<K>, CallToken<K>> | StateObject<K>;
-export type StateObject<K extends StateName> = Record<StateName, TokenSequence<K>>;
+export type StateObject<K extends StateName> = {
+  [P in StateName]: State<K>;
+}
 export type States<K extends StateName> = {
   [P in K]: State<K>
 };
 
 export type MutableState<K extends StateName> = Exclude<MutableTokenSequence<K>, CallToken<K>> | MutableStateObject<K>;
-export type MutableStateObject<K extends StateName> = Record<StateName, MutableTokenSequence<K>>;
+export type MutableStateObject<K extends StateName> = {
+  [P in StateName]: MutableState<K>;
+}
 export type MutableStates<K extends StateName> = Record<K, MutableState<K>>;
 
 export class Choice<K extends StateName> extends Array<SimpleToken<K> | Sequence<K> | StandaloneOperator>
@@ -301,8 +305,8 @@ export function input_to_graph<
       throw new Error(`Conflicting state key: ${key}`, { cause: { key, graphMap } });
     graphMap.set(key, value);
   }
-  for (const stateLabel of stateLabels) {
-    const state: State<K> = states[stateLabel];
+
+  function convertState(stateLabel: StateKey<K>, state: State<K>) { 
     if (isPrimitive(state) || state instanceof RegExp || state instanceof Array) {
       add(stateLabel, convertSequence(state));
     } else {
@@ -321,12 +325,16 @@ export function input_to_graph<
           choice.push(...convertExpr(extra));
           continue;
         }
-        const label = `${stateLabel}_${subLabel}` as const;
-        add(label, convertSequence(state[subLabel]));
+        const label: StateKey<K> = `${stateLabel}_${subLabel}` as const;
+        convertState(label, state[subLabel]);
         choice.push(label);
       }
       add(stateLabel, sequence);
     }
+  }
+  for (const stateLabel of stateLabels) {
+    const state: State<K> = states[stateLabel];
+    convertState(stateLabel, state);
   }
 
   for (const [key, call] of toCompile) {

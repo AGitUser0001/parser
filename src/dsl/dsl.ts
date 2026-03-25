@@ -4,7 +4,7 @@ import { input_to_graph, typed_states, toParseTree, build, Semantics, Graph } fr
 export const grammar = typed_states({
   Grammar: ['*', 'State', ['?', /;/]],
 
-  StateObject: ['prefixes', /\{/, [['*', 'State_reg', ['?', /;/]]], /\}/, '#postfixes'],
+  StateObject: ['prefixes', /\{/, [['*', 'State', ['?', /;/]]], /\}/, '#postfixes'],
 
   State: {
     reg: ['identifier', /=/, [['!', 'prefixes', /\{/]], 'Choice_outer'],
@@ -145,13 +145,13 @@ export const semantics = createSemantics<Data<StateName>>({
     for (const [node, _semicolonIter] of stateIter.iterations) {
       const data = this(node);
       assertType(data, 'state');
-      if (!Array.isArray(data.v))
-        throw new TypeError('Internal error: subState is not Array', { cause: { data, node } });
       if (states[data.name])
         throw new Error(`Duplicate subState: ${data.name}`, { cause: { data, node, states } });
       states[data.name] = data.v;
     }
 
+    if (!Array.isArray(states['_']))
+      throw new TypeError(`states['_'] cannot be a StateObject`, { cause: { states } });
     const operators = [...prefixA.v, ...postfixA.v];
     if (states['_'])
       states['_'] = [collapseExpr([states['_']])];
