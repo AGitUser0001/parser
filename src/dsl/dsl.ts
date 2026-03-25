@@ -150,15 +150,15 @@ export const semantics = createSemantics<Data<StateName>>({
       states[data.name] = data.v;
     }
 
-    if (!Array.isArray(states['_']))
+    let magic_state = states['_'] ?? [[]];
+    if (!Array.isArray(magic_state))
       throw new TypeError(`states['_'] cannot be a StateObject`, { cause: { states } });
-    const operators = [...prefixA.v, ...postfixA.v];
     if (states['_'])
-      states['_'] = [collapseExpr([states['_']])];
+      states['_'] = magic_state = [collapseExpr([magic_state])];
+    const operators = [...prefixA.v, ...postfixA.v];
     if (operators.length) {
-      if (!states['_'])
-        states['_'] = [[]];
-      const arr = states['_'][0];
+      states['_'] = magic_state;
+      const arr = magic_state[0];
       if (!Array.isArray(arr))
         throw new TypeError(`Internal error: states['_'][0] is not Array?`, { cause: { states, arr } });
       arr.push(...operators);
