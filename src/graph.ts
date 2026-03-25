@@ -325,6 +325,24 @@ export function input_to_graph<
           choice.push(...convertExpr(extra));
           continue;
         }
+        if (subLabel === '_before') {
+          const data = state[subLabel];
+          if (!Array.isArray(data))
+            throw new Error(`Special subLabel _before must be structured [...]`, {
+              cause: { states, stateLabel, subLabel, graphMap }
+            });
+          sequence.unshift(...convertSequence(data));
+          continue;
+        }
+        if (subLabel === '_after') {
+          const data = state[subLabel];
+          if (!Array.isArray(data))
+            throw new Error(`Special subLabel _after must be structured [...]`, {
+              cause: { states, stateLabel, subLabel, graphMap }
+            });
+          sequence.push(...convertSequence(data));
+          continue;
+        }
         const label: StateKey<K> = `${stateLabel}_${subLabel}` as const;
         convertState(label, state[subLabel]);
         choice.push(label);
