@@ -613,7 +613,7 @@ function withOperators<K extends StateName, WS_C>(
 const WS_REGEX = /\s+/y;
 const LEXICAL_REGEX = /^[\p{Ll}_]/u;
 export type ParserFn<
-  K extends StateName, WS_I extends any[], WS_O
+  K extends StateName, WS_I extends any[] = DefaultSkipWsInput, WS_O = DefaultSkipWsOutput
 > = (input: string, start: StateKey<K>, ...args: WS_I) => Result & { type: 'root'; };
 type ParserResources<K extends StateName, WS_I extends any[], WS_O> = {
   states: Map<StateKey<K>, StateRV<K, WS_O>>,
@@ -623,7 +623,7 @@ type ParserResources<K extends StateName, WS_I extends any[], WS_O> = {
   s: SkipWs<K, WS_O>
 };
 export type Parser<
-  K extends StateName, WS_I extends any[], WS_O
+  K extends StateName, WS_I extends any[] = DefaultSkipWsInput, WS_O = DefaultSkipWsOutput
 > = Fn<ParserFn<K, WS_I, WS_O>> & { resources: ParserResources<K, WS_I, WS_O> };
 export type SkipWsBuilder<K extends StateName, I extends any[], O> = (states: MapView<StateKey<K>, StateRV<K, O> | FnT<K, O>>) => {
   skipWs: SkipWsFn<K, O>;

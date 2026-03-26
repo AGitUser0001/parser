@@ -142,7 +142,7 @@ if (RUN_NATIVE) {
   console.timeEnd('Native');
 }
 
-let parseJSON: ParserFn<GraphStates<typeof jsonGraph>, [ws?: RegExp]>;
+let parseJSON: ParserFn<GraphStates<typeof jsonGraph>>;
 if (WRITE_EMIT && writeFile) {
   console.time('build');
   const parser = build(jsonGraph, true);

@@ -1,0 +1,22 @@
+{
+  "name": "parser-examples-json",
+  "version": "1.0.0",
+  "description": "",
+  "license": "BSD-3-Clause",
+  "author": "AGitUser0001",
+  "type": "module",
+  "main": "json.js",
+  "types": "./json.d.ts",
+  "scripts": {
+    "build": "tsgo --build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "benchmark": "^2.1.4"
+  },
+  "devDependencies": {
+    "@types/benchmark": "^2.1.5",
+    "@types/node": "^25.5.0",
+    "@typescript/native-preview": "^7.0.0-dev.20260326.1"
+  }
+}

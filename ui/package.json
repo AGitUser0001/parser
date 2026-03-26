@@ -25,7 +25,8 @@
     "@types/finalhandler": "^1.2.4",
     "@types/node": "^25.4.0",
     "@types/requirejs": "^2.1.37",
-    "@types/serve-static": "^2.2.0"
+    "@types/serve-static": "^2.2.0",
+    "@typescript/native-preview": "^7.0.0-dev.20260326.1"
   },
   "files": [
     "dist",

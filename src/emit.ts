@@ -16,7 +16,7 @@ export function logic<T extends Func>(closure: T, resources: Resources): Fn<T> {
   return fn as Fn<T>;
 }
 
-interface EmitCtx<K extends StateName> {
+interface EmitCtx {
   readonly vars: Map<string, string>;
   readonly memoMap: Map<O, string>;
   name(): string;
@@ -24,11 +24,11 @@ interface EmitCtx<K extends StateName> {
 
 const INVALID_RE = /[^$_\p{ID_Start}\p{ID_Continue}\u200c\u200d]/ug;
 const IS_VAR_RE = /^[$_\p{ID_Start}](?:[$_\u200C\u200D\p{ID_Continue}])*$/u;
-export function emit<K extends StateName>(
-  parser: Parser<K, any>
+export function emit(
+  parser: Parser<StateName, any[], any>
 ) {
   let c = 0;
-  const ctx: EmitCtx<K> = {
+  const ctx: EmitCtx = {
     vars: new Map,
     memoMap: new Map,
     name() {
@@ -199,8 +199,8 @@ export function emit<K extends StateName>(
   return code;
 }
 
-function emitValue<K extends StateName>(
-  ctx: EmitCtx<K>,
+function emitValue(
+  ctx: EmitCtx,
   value: O | Fn<Func>,
   suggestedKey?: string
 ): string {
@@ -238,8 +238,8 @@ function emitValue<K extends StateName>(
   return k;
 }
 
-function emitFn<K extends StateName>(
-  ctx: EmitCtx<K>,
+function emitFn(
+  ctx: EmitCtx,
   value: Fn<Func>
 ): string {
   let e = Object.entries(value.resources);
