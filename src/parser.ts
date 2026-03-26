@@ -235,7 +235,7 @@ function buildTerm<K extends StateName>(
   } else {
     const x = ctx.stateParsers.get(term)!;
     if (lexical)
-      return ctx.logic((rc, pos) => x(rc, pos), { x });
+      return x;
     const s = ctx.skipWs;
     return ctx.logic((rc, pos) => {
       let ws;
