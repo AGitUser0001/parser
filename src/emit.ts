@@ -189,8 +189,7 @@ export function emit<K extends StateName>(
   }
   const fns = [
     improves,
-    improves_error,
-    skipWs,
+    improves_error
   ];
   for (const fn of fns) {
     const refs = refsTo(fn.name);
