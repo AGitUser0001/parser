@@ -64,7 +64,7 @@ grammarModel.onDidChangeContent(() => {
 streams.grammar.subscribe(({ input: dslCode, skipWs }, token) => {
   let skipWsJs = String(skipWs);
   if (skipWsJs !== 'undefined')
-    skipWsJs = `(${methodFunctionToFunction(skipWsJs)})`;
+    skipWsJs = methodFunctionToFunction(skipWsJs);
   state.compile(dslCode ?? '', skipWsJs).then(
     data => streams.compiled.update({ data }, token),
     err => streams.compiled.update({ err }, token)

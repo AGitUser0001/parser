@@ -43,7 +43,8 @@ export class LocalState implements State {
   }
 
   async compile(input: string, skipWsJs: string) {
-    const skipWsFn: SkipWsBuilder<StateName, any, any> | undefined = eval(skipWsJs);
+    const fn = new Function(`return (${skipWsJs})`);
+    const skipWsFn: SkipWsBuilder<StateName, any, any> | undefined = fn();
     const states = dsl.load(input);
     const graph = input_to_graph(states);
     const parser = skipWsFn ? build(graph, true, skipWsFn) : build(graph, true);
