@@ -2,23 +2,23 @@ import type { StateName } from "./graph.js";
 import { type Parser, type FnT, skipWs, improves, improves_error } from "./parser.js";
 
 type Func = (...args: any[]) => any;
-type O<T extends Func> = Fn<T> | string | bigint | number | boolean | undefined | null | RegExp | O<T>[] | Set<O<T>> | Map<O<T>, O<T>>;
-export type Resources<T extends Func> = {
-  [key: string]: O<T>;
+type O = Fn<Func> | string | bigint | number | boolean | undefined | null | RegExp | O[] | Set<O> | Map<O, O>;
+export type Resources = {
+  [key: string]: O;
 };
-export type Fn<T extends Func, X extends Func = T> = {
+export type Fn<T extends Func> = {
   (...args: Parameters<T>): ReturnType<T>;
-  resources: Resources<X>;
+  resources: Resources;
 }
-export function logic<T extends Func, X extends Func>(closure: T, resources: Resources<X>): Fn<T, X> {
-  const fn = closure as Partial<Fn<T, X>>;
+export function logic<T extends Func>(closure: T, resources: Resources): Fn<T> {
+  const fn = closure as Partial<Fn<T>>;
   fn.resources = resources;
-  return fn as Fn<T, X>;
+  return fn as Fn<T>;
 }
 
 interface EmitCtx<K extends StateName> {
   readonly vars: Map<string, string>;
-  readonly memoMap: Map<O<FnT<K, unknown>>, string>;
+  readonly memoMap: Map<O, string>;
   name(): string;
 };
 
@@ -46,7 +46,7 @@ export function emit<K extends StateName>(
   }
   let code = '';
 
-  const externs = new Map<string, Fn<Func, FnT<K, unknown>>>([
+  const externs = new Map<string, Fn<Func>>([
     ['parse', parser]
   ]);
   for (const [name, fn] of externs) {
@@ -201,7 +201,7 @@ export function emit<K extends StateName>(
 
 function emitValue<K extends StateName>(
   ctx: EmitCtx<K>,
-  value: O<FnT<K, unknown>> | Fn<Func, FnT<K, unknown>>,
+  value: O | Fn<Func>,
   suggestedKey?: string
 ): string {
   if (ctx.memoMap.has(value))
@@ -240,7 +240,7 @@ function emitValue<K extends StateName>(
 
 function emitFn<K extends StateName>(
   ctx: EmitCtx<K>,
-  value: Fn<Func, FnT<K, unknown>>
+  value: Fn<Func>
 ): string {
   let e = Object.entries(value.resources);
   let k = new Map<string, string>();

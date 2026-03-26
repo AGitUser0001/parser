@@ -33,21 +33,21 @@ export type Result =
 export type MatcherValue = string;
 
 export type SkipWsFn<K extends StateName, WS_C> = (rc: RuntimeCtx<K, WS_C>, pos: number) => [ws: MatcherValue | null, pos: number];
-export type SkipWs<K extends StateName, WS_C> = Fn<SkipWsFn<K, WS_C>, FnT<K>>;
+export type SkipWs<K extends StateName, WS_C> = Fn<SkipWsFn<K, WS_C>>;
 
 type MemoEntry = { result: Result; };
-interface ParserCtx<K extends StateName> {
+interface ParserCtx<K extends StateName, WS_C> {
   readonly graph: Graph<K>;
 
   readonly sccOf: MapView<StateKey<K>, SccId>;
   readonly sccMembers: MapView<SccId, StateKey<K>[]>;
-  readonly sccSolvers: Map<SccId, Fn<FnT<K, void>, FnT<K>>>;
+  readonly sccSolvers: Map<SccId, Fn<FnT<K, WS_C, void>>>;
 
   readonly lexicalStates: Set<StateKey<K>>;
-  readonly stateParsers: Map<StateKey<K>, StateRV<K>>;
-  skipWs: SkipWs<K, any>;
+  readonly stateParsers: Map<StateKey<K>, StateRV<K, WS_C>>;
+  skipWs: SkipWs<K, WS_C>;
 
-  logic<T extends (...args: any[]) => any = FnT<K>>(closure: T, resources: Resources<FnT<K, unknown>>): Fn<T, FnT<K, unknown>>;
+  logic<T extends (...args: any[]) => any = FnT<K, WS_C>>(closure: T, resources: Resources): Fn<T>;
 };
 
 interface RuntimeCtx<K extends StateName, WS_C> {
@@ -84,13 +84,13 @@ export function skipWs(rc: RuntimeCtx<StateName, { re: RegExp, last: number }>, 
   return [null, pos];
 };
 
-export type FnT<K extends StateName, R = Result> = (rc: RuntimeCtx<K, any>, pos: number) => R;
-export type RV<K extends StateName> = Fn<FnT<K>, FnT<K>>;
-export type StateRV<K extends StateName> = Fn<FnT<K, Result & { type: 'state' }>, FnT<K>>;
-function buildState<K extends StateName>(
-  ctx: ParserCtx<K>,
+export type FnT<K extends StateName, WS_C, R = Result> = (rc: RuntimeCtx<K, WS_C>, pos: number) => R;
+export type RV<K extends StateName, WS_C> = Fn<FnT<K, WS_C>>;
+export type StateRV<K extends StateName, WS_C> = Fn<FnT<K, WS_C, Result & { type: 'state' }>>;
+function buildState<K extends StateName, WS_C>(
+  ctx: ParserCtx<K, WS_C>,
   state: StateKey<K>
-): StateRV<K> {
+): StateRV<K, WS_C> {
   const sid = ctx.sccOf.get(state);
   if (sid === undefined) {
     const x = buildStateBody(ctx, state, ctx.lexicalStates.has(state));
@@ -126,10 +126,10 @@ function buildState<K extends StateName>(
   }, { s, state });
 }
 
-function buildSCC<K extends StateName>(
-  ctx: ParserCtx<K>,
+function buildSCC<K extends StateName, WS_C>(
+  ctx: ParserCtx<K, WS_C>,
   sccId: SccId
-): Fn<FnT<K, void>, FnT<K>> {
+): Fn<FnT<K, WS_C, void>> {
   const cached = ctx.sccSolvers.get(sccId);
   if (cached) return cached;
 
@@ -137,7 +137,7 @@ function buildSCC<K extends StateName>(
   if (!group || group.length === 0)
     throw new Error(`Internal error: invalid scc group for ${sccId}`, { cause: { ctx, sccId, group } });
 
-  let ev: RV<K>[] = [];
+  let ev: RV<K, WS_C>[] = [];
   for (let i = 0; i < group.length; i++) {
     const st = group[i];
     const x = buildStateBody(ctx, st, ctx.lexicalStates.has(st));
@@ -199,11 +199,11 @@ function buildSCC<K extends StateName>(
   return result;
 }
 
-function buildStateBody<K extends StateName>(
-  ctx: ParserCtx<K>,
+function buildStateBody<K extends StateName, WS_C>(
+  ctx: ParserCtx<K, WS_C>,
   state: StateKey<K>,
   lexical: boolean
-): RV<K> {
+): RV<K, WS_C> {
   const seq = ctx.graph.get(state);
   if (!seq)
     throw new Error(`Invalid state: ${state}`, { cause: { ctx, state } });
@@ -211,11 +211,11 @@ function buildStateBody<K extends StateName>(
   return buildSequence(ctx, seq, lexical);
 }
 
-function buildTerm<K extends StateName>(
-  ctx: ParserCtx<K>,
+function buildTerm<K extends StateName, WS_C>(
+  ctx: ParserCtx<K, WS_C>,
   term: RegExp | StateKey<K> | Choice<K> | Sequence<K>,
   lexical: boolean
-): RV<K> {
+): RV<K, WS_C> {
   if (term instanceof RegExp) {
     const x = buildRegex(ctx, term);
     if (lexical)
@@ -246,18 +246,18 @@ function buildTerm<K extends StateName>(
     }, { x, s });
   }
 }
-const noop = logic<FnT<StateName, never>, never>((rc, pos) => {
+const noop = logic<FnT<StateName, unknown, never>>((rc, pos) => {
   throw new Error('Internal Error: noop reached.', { cause: { rc, pos } });
 }, {});
 
-function buildSequence<K extends StateName>(
-  ctx: ParserCtx<K>,
+function buildSequence<K extends StateName, WS_C>(
+  ctx: ParserCtx<K, WS_C>,
   seq: Sequence<K>,
   lexical: boolean
-): RV<K> {
+): RV<K, WS_C> {
   const { body } = seq.segments;
   lexical = lexScope(ctx, seq, lexical);
-  let r: RV<K>;
+  let r: RV<K, WS_C>;
   if (body.length === 1) {
     const term = body[0];
     throwOnGeneric(term);
@@ -267,7 +267,7 @@ function buildSequence<K extends StateName>(
       return { type: 'sequence', ok: r.ok, pos: r.pos, value: [r] };
     }, { x });
   } else {
-    const ev: RV<K>[] = [];
+    const ev: RV<K, WS_C>[] = [];
     for (const term of body) {
       throwOnGeneric(term);
       const x = buildTerm(ctx, term, lexical);
@@ -288,14 +288,14 @@ function buildSequence<K extends StateName>(
   return withOperators(ctx, seq, r, lexical);
 }
 
-function buildChoice<K extends StateName>(
-  ctx: ParserCtx<K>,
+function buildChoice<K extends StateName, WS_C>(
+  ctx: ParserCtx<K, WS_C>,
   choice: Choice<K>,
   lexical: boolean
-): RV<K> {
+): RV<K, WS_C> {
   const { ops, body } = choice.segments;
   lexical = lexScope(ctx, choice, lexical);
-  let r: RV<K>;
+  let r: RV<K, WS_C>;
   if (body.length === 1) {
     const term = body[0];
     throwOnGeneric(term);
@@ -305,7 +305,7 @@ function buildChoice<K extends StateName>(
       return { type: 'choice', ok: r.ok, pos: r.pos, value: r, alt: 0 };
     }, { x });
   } else {
-    const ev: RV<K>[] = [];
+    const ev: RV<K, WS_C>[] = [];
     for (const term of body) {
       throwOnGeneric(term);
       const x = buildTerm(ctx, term, lexical);
@@ -349,7 +349,7 @@ function buildChoice<K extends StateName>(
   return withOperators(ctx, choice, r, lexical);
 }
 
-function buildRegex<K extends StateName>(ctx: ParserCtx<K>, re: RegExp): RV<K> {
+function buildRegex<K extends StateName, WS_C>(ctx: ParserCtx<K, WS_C>, re: RegExp): RV<K, WS_C> {
   if (!re.sticky || re.global)
     throw new Error(`matchRegex: Expected sticky and non-global regex, got: ${re.flags}`, { cause: re });
 
@@ -372,8 +372,8 @@ function throwOnGeneric<K extends StateName>(x: Exclude<GraphToken<K>, Standalon
     );
 }
 
-function lexScope<K extends StateName>(
-  ctx: ParserCtx<K>,
+function lexScope<K extends StateName, WS_C>(
+  ctx: ParserCtx<K, WS_C>,
   data: GraphCollection<K>,
   lexical: boolean
 ): boolean {
@@ -388,12 +388,12 @@ function lexScope<K extends StateName>(
   return lexical;
 }
 
-function withOperators<K extends StateName>(
-  ctx: ParserCtx<K>,
+function withOperators<K extends StateName, WS_C>(
+  ctx: ParserCtx<K, WS_C>,
   data: GraphCollection<K>,
-  r: RV<K>,
+  r: RV<K, WS_C>,
   lexical: boolean
-): RV<K> {
+): RV<K, WS_C> {
   const { ops } = data.segments;
 
   const hasPosLA = ops.has('&');
@@ -613,70 +613,76 @@ function withOperators<K extends StateName>(
 const WS_REGEX = /\s+/y;
 const LEXICAL_REGEX = /^[\p{Ll}_]/u;
 export type ParserFn<
-  K extends StateName, WS_I extends any[]
+  K extends StateName, WS_I extends any[], WS_O
 > = (input: string, start: StateKey<K>, ...args: WS_I) => Result & { type: 'root'; };
-type ParserResources<K extends StateName> = {
-  states: Map<StateKey<K>, StateRV<K>>,
+type ParserResources<K extends StateName, WS_I extends any[], WS_O> = {
+  states: Map<StateKey<K>, StateRV<K, WS_O>>,
   allStates: Set<StateKey<K>>,
   lexicalStates: Set<StateKey<K>>,
-  processWSArgs: (...args: any[]) => any,
-  s: SkipWs<K, any>
+  processWSArgs: (...args: WS_I) => WS_O,
+  s: SkipWs<K, WS_O>
 };
 export type Parser<
-  K extends StateName, WS_I extends any[]
-> = Fn<ParserFn<K, WS_I>, FnT<K>> & { resources: ParserResources<K> };
-export type SkipWsBuilder<K extends StateName, I extends any[], O> = (states: MapView<StateKey<K>, StateRV<K> | FnT<K>>) => {
+  K extends StateName, WS_I extends any[], WS_O
+> = Fn<ParserFn<K, WS_I, WS_O>> & { resources: ParserResources<K, WS_I, WS_O> };
+export type SkipWsBuilder<K extends StateName, I extends any[], O> = (states: MapView<StateKey<K>, StateRV<K, O> | FnT<K, O>>) => {
   skipWs: SkipWsFn<K, O>;
   processArgs: (...args: I) => O,
-  resources?: Resources<(...args: any[]) => any>;
+  resources?: Resources;
 };
+
+type DefaultSkipWsInput = [ws?: RegExp];
+type DefaultSkipWsOutput = { re: RegExp, last: number };
+type DefaultSkipWsBuilder = SkipWsBuilder<StateName, DefaultSkipWsInput, DefaultSkipWsOutput>;
+export function defaultSkipWsBuilder(...params: Parameters<DefaultSkipWsBuilder>): ReturnType<DefaultSkipWsBuilder>;
+export function defaultSkipWsBuilder(): ReturnType<DefaultSkipWsBuilder> {
+  return {
+    skipWs,
+    processArgs(ws?: RegExp) {
+      ws ??= WS_REGEX;
+      if (!ws.sticky || ws.global) {
+        throw new Error("Whitespace regex must be sticky and non-global");
+      }
+      return { re: ws, last: -1 };
+    },
+    resources: { WS_REGEX }
+  }
+}
 
 export function build<K extends StateName>(
   graph: Graph<K>,
   metadata: true
-): Parser<K, [ws?: RegExp]>;
+): Parser<K, DefaultSkipWsInput, DefaultSkipWsOutput>;
 export function build<K extends StateName>(
   graph: Graph<K>,
   metadata?: false
-): ParserFn<K, [ws?: RegExp]>;
+): ParserFn<K, DefaultSkipWsInput, DefaultSkipWsOutput>;
 export function build<K extends StateName>(
   graph: Graph<K>,
   metadata: boolean
-): ParserFn<K, [ws?: RegExp]> | Parser<K, [ws?: RegExp]>;
+): ParserFn<K, DefaultSkipWsInput, DefaultSkipWsOutput> | Parser<K, DefaultSkipWsInput, DefaultSkipWsOutput>;
 
 export function build<K extends StateName, WS_I extends any[], WS_O>(
   graph: Graph<K>,
   metadata: true,
   makeSkipWs: SkipWsBuilder<K, WS_I, WS_O>
-): Parser<K, WS_I>;
+): Parser<K, WS_I, WS_O>;
 export function build<K extends StateName, WS_I extends any[], WS_O>(
   graph: Graph<K>,
   metadata: false,
   makeSkipWs: SkipWsBuilder<K, WS_I, WS_O>
-): ParserFn<K, WS_I>;
+): ParserFn<K, WS_I, WS_O>;
 export function build<K extends StateName, WS_I extends any[], WS_O>(
   graph: Graph<K>,
   metadata: boolean,
   makeSkipWs: SkipWsBuilder<K, WS_I, WS_O>
-): ParserFn<K, WS_I> | Parser<K, WS_I>;
+): ParserFn<K, WS_I, WS_O> | Parser<K, WS_I, WS_O>;
 
-export function build<K extends StateName>(
+export function build<K extends StateName, WS_I extends any[], WS_O>(
   graph: Graph<K>,
   metadata = false,
-  makeSkipWs: SkipWsBuilder<K, any, any> = (() => {
-    return {
-      skipWs,
-      processArgs(ws?: RegExp) {
-        ws ??= WS_REGEX;
-        if (!ws.sticky || ws.global) {
-          throw new Error("Whitespace regex must be sticky and non-global");
-        }
-        return { re: ws, last: -1 };
-      },
-      resources: { WS_REGEX }
-    }
-  }) satisfies SkipWsBuilder<K, [ws?: RegExp], { re: RegExp, last: number }>
-): ParserFn<K, any> | Parser<K, any> {
+  makeSkipWs: SkipWsBuilder<K, WS_I, WS_O> = defaultSkipWsBuilder as any
+): ParserFn<K, WS_I, WS_O> | Parser<K, WS_I, WS_O> {
   const lexicalStates = new Set<StateKey<K>>();
   const allStates = new Set(graph.keys());
   for (const stateLabel of allStates) {
@@ -684,7 +690,7 @@ export function build<K extends StateName>(
       lexicalStates.add(stateLabel);
   }
 
-  const ctx: ParserCtx<K> = {
+  const ctx: ParserCtx<K, WS_O> = {
     graph,
     sccOf: graph.sccOf,
     sccMembers: graph.sccMembers,
@@ -695,15 +701,15 @@ export function build<K extends StateName>(
     logic(closure, resources) {
       if (metadata)
         return logic(closure, resources);
-      return closure as unknown as Fn<typeof closure, FnT<K, unknown>>;
+      return closure as unknown as Fn<typeof closure>;
     }
   };
 
-  const states = new Map<StateKey<K>, StateRV<K>>();
-  const lazy = new Map<StateKey<K>, (val: StateRV<K>) => void>();
+  const states = new Map<StateKey<K>, StateRV<K, WS_O>>();
+  const lazy = new Map<StateKey<K>, (val: StateRV<K, WS_O>) => void>();
   for (const [stateLabel, state] of graph.entries()) {
     if (state.generic) continue;
-    let x: StateRV<K> = noop;
+    let x: StateRV<K, WS_O> = noop;
     const f = ctx.logic(
       (rc, pos) => x(rc, pos), { x }
     );
@@ -739,7 +745,7 @@ export function build<K extends StateName>(
   }
 
   const s = ctx.skipWs;
-  const parse: ParserFn<K, any> = (input, start, ...ws_args: any[]) => {
+  const parse: ParserFn<K, WS_I, WS_O> = (input, start, ...ws_args: WS_I) => {
     const ws_c = processWSArgs(...ws_args);
 
     const x = states.get(start);
@@ -753,7 +759,7 @@ export function build<K extends StateName>(
       memos.set(stateLabel, new Map);
     }
 
-  const rc: RuntimeCtx<K, any> = {
+    const rc: RuntimeCtx<K, WS_O> = {
       input,
 
       getMemo(state, pos) {
@@ -788,6 +794,6 @@ export function build<K extends StateName>(
     };
   };
   if (metadata)
-    return ctx.logic(parse, { states, allStates, lexicalStates, processWSArgs, s } satisfies ParserResources<K>);
+    return ctx.logic(parse, { states, allStates, lexicalStates, processWSArgs, s } satisfies ParserResources<K, WS_I, WS_O>);
   return parse;
 }
