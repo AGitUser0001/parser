@@ -11,6 +11,8 @@ await new Promise<void>(r => {
 //#endregion
 import type { Graph, RootNode, StateName } from '../parser_dist/index.js';
 import { validateResult } from '../parser_dist/index.js';
+import type { SkipWsBuilder } from '../parser_dist/parser.js';
+import { methodFunctionToFunction } from '../parser_dist/emit.js';
 import { ButtonOverlay, Panel } from './elements.js';
 import { renderGraph, renderInspector, renderInspector2 } from './render.js';
 import { MergeStream, WorkerState, LocalState, Stream, type Handle, type State } from './state.js';
@@ -31,10 +33,10 @@ type ParsedType = Awaited<ReturnType<State['parse']>>;
 type SemanticsType = Awaited<ReturnType<State['compileSemantics']>>;
 type SemanticsRunData = { semantics: Handle<'semantics'>, parseTree: RootNode, jsCtx: string };
 const streams = {
-  grammar: new Stream<string>(),
+  grammar: new MergeStream<{ input: string, skipWs: SkipWsBuilder<StateName, any, any> }>(),
   compiled: new Stream<{ data?: CompiledType, err?: unknown }>(),
   emitted: new Stream<string>(),
-  input: new MergeStream<{ input: string, parser: Handle<'parser'>, start: string, ws?: RegExp }>(),
+  input: new MergeStream<{ input: string, parser: Handle<'parser'>, start: string, ws_args: any[] }>(),
   parsed: new Stream<{ data?: ParsedType, err?: unknown }>(),
   semanticsCode: new MergeStream<{ input: string, graph: Graph<StateName>, enable_memoization: boolean }>(),
   compiledSemantics: new Stream<{ data?: SemanticsType, err?: unknown }>(),
@@ -45,7 +47,8 @@ const streams = {
   configParsed: new Stream<{
     data?: {
       start: string,
-      ws: RegExp | undefined,
+      ws_args: any[] | undefined,
+      skipWs: SkipWsBuilder<StateName, any, any> | undefined,
       semantics_enable_memoization: boolean | undefined,
       color_scheme: string | undefined
     }, err?: unknown
@@ -56,10 +59,13 @@ const grammarModel = monaco.editor.createModel('', 'plaintext');
 grammarPanel.addTab('grammar', "Grammar", grammarModel);
 grammarModel.onDidChangeContent(() => {
   const dslCode = grammarModel.getValue();
-  streams.grammar.update(dslCode, null);
+  streams.grammar.update([['input', dslCode]], null);
 });
-streams.grammar.subscribe((dslCode, token) => {
-  state.compile(dslCode).then(
+streams.grammar.subscribe(({ input: dslCode, skipWs }, token) => {
+  let skipWsJs = String(skipWs);
+  if (skipWsJs !== 'undefined')
+    skipWsJs = `(${methodFunctionToFunction(skipWsJs)})`;
+  state.compile(dslCode ?? '', skipWsJs).then(
     data => streams.compiled.update({ data }, token),
     err => streams.compiled.update({ err }, token)
   );
@@ -152,7 +158,8 @@ grammarPanel.addTab('emit', "Emit", emitModel, () => {
 
 const configModel = monaco.editor.createModel(`return {
   start: "Entry",
-  ws: undefined,
+  ws_args: [],
+  skipWsBuilder: undefined,
   semantics_enable_memoization: false,
   color_scheme: 'light dark'
 }`, 'javascript');
@@ -166,18 +173,21 @@ streams.config.subscribe((jsCode, token) => {
   try {
     const fn = new Function(jsCode);
     const result = fn();
-    let { start, ws, semantics_enable_memoization, color_scheme } = result;
+    let { start, ws_args, skipWsBuilder: skipWs, semantics_enable_memoization, color_scheme } = result;
     if (typeof start !== 'string')
       throw new TypeError(`config.start must be a string!`, { cause: result });
-    if (ws != undefined && !(ws instanceof RegExp))
-      throw new TypeError(`config.ws must be a RegExp or unset!`, { cause: result });
+    if (ws_args != undefined && !Array.isArray(ws_args))
+      throw new TypeError(`config.ws_args must be an Array or unset!`, { cause: result });
+    if (skipWs != undefined && typeof skipWs !== 'function')
+      throw new TypeError(`config.skipWs must be a function or unset!`, { cause: result });
     if (semantics_enable_memoization != undefined && typeof semantics_enable_memoization !== 'boolean')
       throw new TypeError(`config.semantics_enable_memoization must be a boolean or unset!`, { cause: result });
     if (color_scheme != undefined && typeof color_scheme !== 'string')
       throw new TypeError(`config.color_scheme must be a string or unset!`, { cause: result });
 
     const data = {
-      start, ws: (ws ?? undefined) as RegExp | undefined,
+      start, ws_args: (ws_args ?? undefined) as any[] | undefined,
+      skipWs: (skipWs ?? undefined) as SkipWsBuilder<StateName, any, any> | undefined,
       semantics_enable_memoization: (semantics_enable_memoization ?? undefined) as boolean | undefined,
       color_scheme: (color_scheme ?? undefined) as string | undefined
     };
@@ -190,18 +200,20 @@ streams.config.subscribe((jsCode, token) => {
 streams.configParsed.subscribe(({ data, err }, token) => {
   if (!data) {
     monaco.editor.setModelMarkers(configModel, 'eval', getMarkers(configModel, err));
+    streams.grammar.update([['skipWs', undefined]], token);
     streams.input.update([
       ['start', undefined],
-      ['ws', undefined]
+      ['ws_args', undefined]
     ], token);
     streams.semanticsCode.update([['enable_memoization', undefined]], token);
     document.documentElement.style.colorScheme = '';
     return;
   }
   monaco.editor.setModelMarkers(configModel, 'eval', []);
+  streams.grammar.update([['skipWs', data.skipWs]], token);
   streams.input.update([
     ['start', data.start],
-    ['ws', data.ws]
+    ['ws_args', data.ws_args]
   ], token);
   streams.semanticsCode.update([['enable_memoization', data.semantics_enable_memoization]], token);
   document.documentElement.style.colorScheme = data.color_scheme ?? '';
@@ -214,12 +226,12 @@ inputModel.onDidChangeContent(() => {
   streams.input.update([['input', input]], null);
 });
 
-streams.input.subscribe(({ input, parser, start, ws }, token) => {
+streams.input.subscribe(({ input, parser, start, ws_args }, token) => {
   if (parser == null || input == null || start == null) {
     streams.parsed.update({}, token);
     return;
   }
-  state.parse(parser, input, start, ws).then(
+  state.parse(parser, input, start, ...(ws_args ?? [])).then(
     data => streams.parsed.update({ data }, token),
     err => streams.parsed.update({ err }, token)
   );
@@ -315,7 +327,7 @@ streams.config.update(configModel.getValue(), null);
 streams.semanticsRunData.update([['jsCtx', semanticsCtxModel.getValue()]], null);
 streams.semanticsCode.update([['input', semanticsModel.getValue()]], null);
 streams.input.update([['input', inputModel.getValue()]], null);
-streams.grammar.update(grammarModel.getValue(), null);
+streams.grammar.update([['input', grammarModel.getValue()]], null);
 
 // -- Theme --
 

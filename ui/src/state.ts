@@ -7,8 +7,8 @@ export interface Handle<T extends string> {
 
 export interface State {
   dispose(handle: Handle<'parser' | 'semantics'>): Promise<void>;
-  compile(input: string): Promise<{ states: MutableStates<StateName>, graph: Graph<StateName>, parser: Handle<'parser'> }>;
-  parse(parser: Handle<'parser'>, input: string, start: string, ws?: RegExp): Promise<{
+  compile(input: string, skipWsJs: string): Promise<{ states: MutableStates<StateName>, graph: Graph<StateName>, parser: Handle<'parser'> }>;
+  parse(parser: Handle<'parser'>, input: string, start: string, ...ws_args: any[]): Promise<{
     result: Result & { type: 'root' };
     parseTree: RootNode;
     tokens: TokenizerToken[];
@@ -19,7 +19,7 @@ export interface State {
 }
 
 export class LocalState implements State {
-  #parsers: Map<bigint, Parser<StateName>> = new Map();
+  #parsers: Map<bigint, Parser<StateName, any>> = new Map();
   #semantics: Map<bigint, Semantics<StateName, unknown, unknown>> = new Map();
   #count = 0n;
   #mapHandle<T extends string, O>(map: Map<bigint, O>, type: T, value: O) {
@@ -42,18 +42,19 @@ export class LocalState implements State {
       this.#semantics.delete(handle.id);
   }
 
-  async compile(input: string) {
+  async compile(input: string, skipWsJs: string) {
+    const skipWsFn: SkipWsBuilder<StateName, any, any> | undefined = eval(skipWsJs);
     const states = dsl.load(input);
     const graph = input_to_graph(states);
-    const parser = build(graph, true);
+    const parser = skipWsFn ? build(graph, true, skipWsFn) : build(graph, true);
     const parserHandle = this.#mapHandle(this.#parsers, 'parser', parser);
 
     return { states, graph, parser: parserHandle };
   }
 
-  async parse(parser: Handle<'parser'>, input: string, start: string, ws?: RegExp) {
+  async parse(parser: Handle<'parser'>, input: string, start: string, ...ws_args: any[]) {
     const parserFn = this.#readHandle(this.#parsers, parser);
-    const result = parserFn(input, start, ws);
+    const result = parserFn(input, start, ...ws_args);
     const parseTree = toParseTree(result, false);
     const tokens = tokenize(result);
 
@@ -82,6 +83,7 @@ export class LocalState implements State {
 import * as Comlink from 'comlink';
 import type { WorkerStateHandler } from './worker/worker.js';
 import type { MutableStates } from '../parser_dist/graph.js';
+import type { SkipWsBuilder } from '../parser_dist/parser.js';
 
 {
   const throwHandler = Comlink.transferHandlers.get("throw")!;
@@ -158,13 +160,13 @@ export class WorkerState implements State {
   }
 
 
-  async compile(input: string) {
-    const { states, graph, parser } = await this.#WorkerState.compile(input);
+  async compile(input: string, skipWsJs: string) {
+    const { states, graph, parser } = await this.#WorkerState.compile(input, skipWsJs);
     return { states, graph: input_to_graph(graph), parser };
   }
 
-  async parse(parser: Handle<'parser'>, input: string, start: string, ws?: RegExp) {
-    const { result, parseTree, tokens } = await this.#WorkerState.parse(parser, input, start, ws);
+  async parse(parser: Handle<'parser'>, input: string, start: string, ...ws_args: any[]) {
+    const { result, parseTree, tokens } = await this.#WorkerState.parse(parser, input, start, ...ws_args);
     return { result, parseTree: nodeFromJSON(parseTree), tokens };
   }
 
@@ -200,10 +202,10 @@ export class Stream<T> {
       token = globalToken++;
     if (token < this.#token)
       return false;
-    if (token === this.#token)
-      throw new Error('MergeStream Conflict: tried to send update twice with same token', {
-        cause: { value, token }
-      });
+    // if (token === this.#token)
+    //   throw new Error('MergeStream Conflict: tried to send update twice with same token', {
+    //     cause: { value, token }
+    //   });
     this.#token = token;
 
     for (const cb of this.#subs)
@@ -230,10 +232,10 @@ export class MergeStream<O extends Record<string, unknown>> {
     for (const [label, value] of values) { 
       if (token < (this.#tokens[label] ?? -1n))
         return false;
-      if (token === (this.#tokens[label] ?? -1n))
-        throw new Error('MergeStream Conflict: tried to send update twice to same label with same token', {
-          cause: { label, value, token }
-        });
+      // if (token === (this.#tokens[label] ?? -1n))
+      //   throw new Error('MergeStream Conflict: tried to send update twice to same label with same token', {
+      //     cause: { label, value, token }
+      //   });
       this.#tokens[label] = token;
       this.#values[label] = value;
     }

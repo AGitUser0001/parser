@@ -2,10 +2,11 @@ import * as Comlink from '../../../node_modules/comlink/dist/esm/comlink.js';
 
 import { emit, toParseTree, dsl, build, input_to_graph, tokenize, ParseFailedError, nodeToJSON, graph_to_input } from '../../parser_dist/index.js';
 import type { Parser, StateName } from '../../parser_dist/index.js';
+import type { SkipWsBuilder } from '../../parser_dist/parser.js';
 import type { Handle } from '../state.js';
 
 export class WorkerStateHandler {
-  #parsers: Map<bigint, Parser<StateName>> = new Map();
+  #parsers: Map<bigint, Parser<StateName, any>> = new Map();
   // #semantics: Map<bigint, Semantics<StateName, unknown, unknown>> = new Map();
   #count = 0n;
   #mapHandle<T extends string, O>(map: Map<bigint, O>, type: T, value: O) {
@@ -26,18 +27,19 @@ export class WorkerStateHandler {
       this.#parsers.delete(handle.id);
   }
 
-  compile(input: string) {
+  compile(input: string, skipWsJs: string) {
+    const skipWsFn: SkipWsBuilder<StateName, any, any> | undefined = eval(skipWsJs);
     const states = dsl.load(input);
     const graph = input_to_graph(states);
-    const parser = build(graph, true);
+    const parser = skipWsFn ? build(graph, true, skipWsFn) : build(graph, true);
     const parserHandle = this.#mapHandle(this.#parsers, 'parser', parser);
 
     return { states, graph: graph_to_input(graph), parser: parserHandle };
   }
 
-  parse(parser: Handle<'parser'>, input: string, start: string, ws?: RegExp) {
+  parse(parser: Handle<'parser'>, input: string, start: string, ...ws_args: any[]) {
     const parserFn = this.#readHandle(this.#parsers, parser);
-    const result = parserFn(input, start, ws);
+    const result = parserFn(input, start, ...ws_args);
     const parseTree = nodeToJSON(toParseTree(result, false));
     const tokens = tokenize(result);
 

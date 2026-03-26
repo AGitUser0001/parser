@@ -25,7 +25,7 @@ interface EmitCtx<K extends StateName> {
 const INVALID_RE = /[^$_\p{ID_Start}\p{ID_Continue}\u200c\u200d]/ug;
 const IS_VAR_RE = /^[$_\p{ID_Start}](?:[$_\u200C\u200D\p{ID_Continue}])*$/u;
 export function emit<K extends StateName>(
-  parser: Parser<K>
+  parser: Parser<K, any>
 ) {
   let c = 0;
   const ctx: EmitCtx<K> = {
@@ -251,17 +251,18 @@ function emitFn<K extends StateName>(
     k.set(key, v);
   }
   let inputStr = arrowFunctionToBlock(value.toString());
+  inputStr = methodFunctionToFunction(inputStr);
   return transformCode(inputStr, k);
 }
 
 import tokenize, { type Token } from "../node_modules/js-tokens/index.js";
-function transformCode(code: string, kmap: Map<string, string>): string {
+export function transformCode(code: string, kmap: Map<string, string>): string {
   return mapCode(code, (tok) => {
     return kmap.get(tok.value);
   });
 }
 
-function codeRefs(code: string): { direct: Map<string, number>, indirect: Map<string, number> } {
+export function codeRefs(code: string): { direct: Map<string, number>, indirect: Map<string, number> } {
   let refs = new Map<string, number>();
   let directRefs = new Map<string, number>();
   mapCode(code, (tok, { stack }) => {
@@ -275,7 +276,7 @@ function codeRefs(code: string): { direct: Map<string, number>, indirect: Map<st
   return { direct: directRefs, indirect: refs };
 }
 
-function arrowFunctionToBlock(code: string): string {
+export function arrowFunctionToBlock(code: string): string {
   let transformed = false;
   let result = `${mapCode(code, null, (tok, { stack, tokens, i, peek }) => {
     if (tok.type === "Punctuator" && tok.value === "=>" && stack.length === 0) {
@@ -291,6 +292,38 @@ function arrowFunctionToBlock(code: string): string {
     }
   })}\n}`; // handles comments - avoids //comment}
   if (transformed) return result;
+  return code;
+}
+
+export function methodFunctionToFunction(code: string): string {
+  let isMethodFunction = true;
+  mapCode(code, null, (tok, { stack, tokens, i, peek }) => {
+    if (stack.length > 0) return;
+    if (tok.type === "IdentifierName" && tok.value === "function") { 
+      isMethodFunction = false;
+    }
+    if (tok.type === "Punctuator" && tok.value === "=>") {
+      isMethodFunction = false;
+    }
+  });
+  if (isMethodFunction) {
+    let name = null;
+    code = mapCode(code, null, (tok, { stack, tokens, i, peek }) => {
+      if (stack[0] === 'bracket')
+        return '';
+      if (tok.type === "IdentifierName" && stack.length === 0) {
+        let nextIdx = peek(i + 1);
+        if (tokens[nextIdx] && tokens[nextIdx].type === 'IdentifierName') {
+          return; // handles 'async|get|set|static name() {}'
+        }
+        if (tokens[nextIdx] && tokens[nextIdx].type === 'Punctuator' && tokens[nextIdx].value === '*') {
+          return; // handles 'async* name() {}'
+        }
+        name = tok.value;
+      }
+    });
+    return `{ ${name == null ? 'f' : ''}${code} }[${JSON.stringify(name ?? 'f')}]`;
+  }
   return code;
 }
 
@@ -322,7 +355,7 @@ function detectASI({ lastSigToken, nlSinceLastSigToken, stack }: InfoT) {
     (lastSigToken.type !== "Punctuator" && lastSigToken.type !== "IdentifierName")
   );
 }
-function mapCode(
+export function mapCode(
   code: string,
   onIdent?: CallbackT | null,
   onTok?: CallbackT | null
