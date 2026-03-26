@@ -69,14 +69,18 @@ export function improves_error(next: Result, prev: Result): boolean {
     (prev.type === 'none' && next.pos >= prev.pos)
   );
 }
-export function skipWs(rc: RuntimeCtx<StateName, RegExp>, pos: number): [ws: MatcherValue | null, pos: number] {
-  rc.ws.lastIndex = pos;
-  const match = rc.ws.exec(rc.input);
+export function skipWs(rc: RuntimeCtx<StateName, { re: RegExp, last: number }>, pos: number): [ws: MatcherValue | null, pos: number] {
+  if (rc.ws.last === pos) return [null, pos];
+  const re = rc.ws.re;
+  re.lastIndex = pos;
+  const match = re.exec(rc.input);
   if (match) {
     let ws = match[0];
     pos += ws.length;
+    rc.ws.last = pos;
     return [ws, pos];
   }
+  rc.ws.last = pos;
   return [null, pos];
 };
 
@@ -667,11 +671,11 @@ export function build<K extends StateName>(
         if (!ws.sticky || ws.global) {
           throw new Error("Whitespace regex must be sticky and non-global");
         }
-        return ws;
+        return { re: ws, last: -1 };
       },
       resources: { WS_REGEX }
     }
-  }) satisfies SkipWsBuilder<K, [ws?: RegExp], RegExp>
+  }) satisfies SkipWsBuilder<K, [ws?: RegExp], { re: RegExp, last: number }>
 ): ParserFn<K, any> | Parser<K, any> {
   const lexicalStates = new Set<StateKey<K>>();
   const allStates = new Set(graph.keys());
