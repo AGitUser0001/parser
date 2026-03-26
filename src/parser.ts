@@ -668,7 +668,8 @@ export function build<K extends StateName>(
           throw new Error("Whitespace regex must be sticky and non-global");
         }
         return ws;
-      }
+      },
+      resources: { WS_REGEX }
     }
   }) satisfies SkipWsBuilder<K, [ws?: RegExp], RegExp>
 ): ParserFn<K, any> | Parser<K, any> {
