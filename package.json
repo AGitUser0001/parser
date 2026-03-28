@@ -29,6 +29,7 @@
   },
   "scripts": {
     "build": "tsgo --build",
+    "build-all": "npm run build; npm --prefix ui run build; npm --prefix examples/json run build",
     "repl": "tsx --import ./examples/repl-preload.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
