@@ -665,23 +665,23 @@ export function build<K extends StateName>(
 export function build<K extends StateName, WS_I extends any[], WS_O>(
   graph: Graph<K>,
   metadata: true,
-  makeSkipWs: SkipWsBuilder<K, WS_I, WS_O>
+  skipWsBuilder: SkipWsBuilder<K, WS_I, WS_O>
 ): Parser<K, WS_I, WS_O>;
 export function build<K extends StateName, WS_I extends any[], WS_O>(
   graph: Graph<K>,
   metadata: false,
-  makeSkipWs: SkipWsBuilder<K, WS_I, WS_O>
+  skipWsBuilder: SkipWsBuilder<K, WS_I, WS_O>
 ): ParserFn<K, WS_I, WS_O>;
 export function build<K extends StateName, WS_I extends any[], WS_O>(
   graph: Graph<K>,
   metadata: boolean,
-  makeSkipWs: SkipWsBuilder<K, WS_I, WS_O>
+  skipWsBuilder: SkipWsBuilder<K, WS_I, WS_O>
 ): ParserFn<K, WS_I, WS_O> | Parser<K, WS_I, WS_O>;
 
 export function build<K extends StateName, WS_I extends any[], WS_O>(
   graph: Graph<K>,
   metadata = false,
-  makeSkipWs: SkipWsBuilder<K, WS_I, WS_O> = defaultSkipWsBuilder as any
+  skipWsBuilder: SkipWsBuilder<K, WS_I, WS_O> = defaultSkipWsBuilder as any
 ): ParserFn<K, WS_I, WS_O> | Parser<K, WS_I, WS_O> {
   const lexicalStates = new Set<StateKey<K>>();
   const allStates = new Set(graph.keys());
@@ -727,7 +727,7 @@ export function build<K extends StateName, WS_I extends any[], WS_O>(
     skipWs: user_skipWs,
     resources: ws_resources,
     processArgs: ws_processArgs
-  } = makeSkipWs(new MapView(ctx.stateParsers));
+  } = skipWsBuilder(new MapView(ctx.stateParsers));
   if (!user_skipWs)
     throw new Error('skipWsBuilder must return { skipWs, processArgs, resources? } but is missing skipWs');
   ctx.skipWs = ctx.logic(user_skipWs, ws_resources ?? {});
